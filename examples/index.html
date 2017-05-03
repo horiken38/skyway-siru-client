@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="../dist/skywayPubSub.js"></script>
+  </head>
+  <body>
+    <button>send hello world</button>
+    <div id="devices"></div>
+    <div id="metrics"></div>
+    <p>
+    <h3>video uuid: <span id="video-uuid"></span></h3>
+    <video id="janusvideo" autoplay></video>
+    </p>
+
+    <div id="output">
+      <ul id="list"></ul>
+    </div>
+    <script>
+const client = new skPubSub('testroom', {key: 'db07bbb6-4ee8-4eb7-b0c2-b8b2e5c69ef9', debug: 0})
+let uuid
+
+client.on('connect', () => {
+  $("#output").html("<b>connection established for skPubSub</b><br><div id='fetch'></div><ul id='list'></ul>")
+  client.subscribe('presence')
+
+  $("button").on("click", ev => {
+    client.publish('presence', `${client.myid}:hello world.`)
+    const body = 'echo request:' + Date.now()
+
+    client.fetch('/echo/hello123'+Date.now(), {uuid, body})
+      .then(res => {
+        return res.text() 
+      })
+      .then(text => {
+        $("#fetch").text(text)
+      })
+  })
+})
+
+client.on("meta", profile => {
+  $("#devices").html("<h1>" + profile.name + "</h1><p><pre>"+profile.description+"<br>[uuid: "+profile.uuid+"]</pre></p>")
+  uuid = profile.uuid
+  $("#output").append("<div id='" + uuid + "'></div>")
+
+  const html = profile.topics.map(topic => "<h2>" + topic.title + "</h2><div id='" + topic.name.replace("/", "-") + "'></div>").join("")
+
+  $("#metrics").html(html)
+
+  profile.topics.forEach(topic => client.subscribe(topic.name))
+
+  
+
+  if(profile.streaming.enable) {
+    client.requestStreaming(profile.uuid)
+  }
+})
+client.on("stream", (stream, uuid) => {
+  $("#video-uuid").text(uuid)
+
+  $("#janusvideo").attr("src", window.URL.createObjectURL(stream))
+})
+
+client.on('message', (topic, mesg) => {
+  let _mesg
+
+  try {
+    _mesg = JSON.parse(mesg)
+  } catch(err) {
+    _mesg = mesg
+  }
+  switch(topic) {
+  case 'presence':
+    $("#list").append(`<li>${topic} - ${mesg}</li>`)
+  default:
+    $("#"+topic.replace("/", "-")).html("<pre>" + JSON.stringify(_mesg, null, "  ") + "</pre>")
+    break;
+  }
+})
+    </script>
+  </body>
+</html>
