@@ -6,7 +6,9 @@
     <script src="../dist/SiRu-client.js"></script>
   </head>
   <body>
-    <button>send hello world</button>
+    <button id="send-echo-req">send echo request</button>
+    <button id="send-take-photo">post take photo</button>
+
     <div id="devices"></div>
     <div id="metrics"></div>
     <p>
@@ -25,7 +27,8 @@ client.on('connect', () => {
   $("#output").html("<b>connection established for skPubSub</b><br><div id='fetch'></div><ul id='list'></ul>")
   client.subscribe('presence')
 
-  $("button").on("click", ev => {
+  $("button#send-echo-req").on("click", ev => {
+    console.log('ok')
     client.publish('presence', `${client.myid}:hello world.`)
     const body = 'echo request:' + Date.now()
 
@@ -36,6 +39,12 @@ client.on('connect', () => {
       .then(text => {
         $("#fetch").text(text)
       })
+  })
+
+  $("button#send-take-photo").on("click", ev => {
+    client.fetch( uuid + "/take/photo", {method: 'POST'})
+      .then(res => res.text())
+      .then(text => $("#fetch").text(text))
   })
 })
 

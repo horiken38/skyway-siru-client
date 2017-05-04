@@ -83,7 +83,7 @@ class SiRuClient extends EventEmitter {
       if(uuid && conn) {
         const transaction_id = Date.now()
         const method         = options.method || 'GET'
-        const path           = arr.slice(1).join("/")
+        const path           = "/" + arr.slice(1).join("/")
         const query          = options.query || {}
         const body           = options.body || null
 
