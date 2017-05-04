@@ -1,12 +1,10 @@
 /**
  * Device Manager
- * 
- * 
+ *
+ *
  */
 
 const EventEmitter = require('events').EventEmitter
-const log4js = require('log4js')
-const logger = log4js.getLogger('DeviceManager')
 
 const PROFILE_GET  = 'SSG:profile/get'
 const STREAM_START = 'SSG:stream/start'
@@ -15,7 +13,7 @@ const STREAM_STOP  = 'SSG:stream/stop'
 class DeviceManager extends EventEmitter {
   constructor() {
     super();
-    
+
     /**
      * @property {string} device.uuid
      * @property {object} device.connection
@@ -25,7 +23,7 @@ class DeviceManager extends EventEmitter {
   }
 
   /**
-   * 
+   *
    * @param {string} peerid - my peerid
    */
   start(peerid) {
@@ -33,12 +31,11 @@ class DeviceManager extends EventEmitter {
   }
 
   /**
-   * 
+   *
    * @param {objcect} conn - datachannel connection object
    */
   register(conn) {
     conn.send(PROFILE_GET)
-    logger.debug(`send profile get messaage ${PROFILE_GET}`)
 
     conn.on('data', data => {
       try {
@@ -46,14 +43,14 @@ class DeviceManager extends EventEmitter {
           this.handleCtrlData(conn, JSON.parse(data.slice(4).toString()))
         }
       } catch(e) {
-        logger.warn(e)
+        console.warn(e)
       }
     })
   }
 
   /**
-   * 
-   * @param {string} uuid 
+   *
+   * @param {string} uuid
    */
   getDataChannelConnection(uuid){
     let conn;
@@ -65,43 +62,42 @@ class DeviceManager extends EventEmitter {
   }
 
   /**
-   * 
-   * @param {string} uuid 
+   *
+   * @param {string} uuid
    */
   getPeerid(uuid) {
     let peerid;
 
     this.devices.filter(obj => obj.uuid === uuid)
       .forEach(obj => peerid = obj.profile.ssg_peerid)
-    
+
     return peerid
   }
 
   /**
-   * 
-   * @param {string} peerid 
+   *
+   * @param {string} peerid
    */
   getUUID(peerid) {
     let uuid;
 
     this.devices.filter(obj => obj.profile.ssg_peerid === peerid)
       .forEach(obj => uuid = obj.uuid)
-    
+
     return uuid
   }
 
 
 
   /**
-   * 
-   * @param {object} conn - connection object 
+   *
+   * @param {object} conn - connection object
    * @param {object} data - data
    */
   handleCtrlData(conn, data) {
-    logger.debug("handle Ctrol data", data)
     if(data.type === 'response'
-      && data.target === 'profile' 
-      && data.method === 'get' 
+      && data.target === 'profile'
+      && data.method === 'get'
       && typeof(data.body) === 'object'
       && typeof(data.body.uuid) === 'string') {
 
@@ -110,7 +106,6 @@ class DeviceManager extends EventEmitter {
         connection: conn,
         profile: data.body
       }
-      logger.debug(data.body)
 
       this.devices.push(newDevice)
       this.emit('meta', newDevice.profile)
@@ -124,7 +119,7 @@ class DeviceManager extends EventEmitter {
     let ret;
     this.devices.filter(device => device.uuid === uuid)
       .forEach(device => ret = device.connection)
-    
+
     return ret;
   }
 

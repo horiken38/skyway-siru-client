@@ -19,7 +19,6 @@
     "enum": "git+https://github.com/eastandwest/enum.git#react-native",
     "events": "^1.1.0",
     "js-binarypack": "0.0.9",
-    "log4js": "^1.1.1",
     "node-fetch": "^1.6.3",
     "object-sizeof": "^1.0.10",
     "rx": "^4.1.0",

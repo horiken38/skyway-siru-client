@@ -38,13 +38,8 @@ module.exports = {
     extensions: ['.js', '.jsx', '.json']
   },
   plugins: [
-    new webpack.IgnorePlugin(/^(cluster|hipchat-notifier|axios|loggly|mailgun-js|slack-node|nodemailer)$/)
   ],
   node: {
-    "fs":    "empty",
-    "dgram": "empty",
-    "net":   "empty",
-    "child_process": "empty"
   }
 }
 

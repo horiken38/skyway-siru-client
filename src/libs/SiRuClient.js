@@ -1,5 +1,4 @@
 const EventEmitter = require('events').EventEmitter
-const log4js       = require('log4js')
 const DeviceManager = require('./DeviceManager')
 const _            = require('underscore')
 const Rx           = require('rx')
@@ -7,15 +6,6 @@ const util         = require('./util')
 const Response     = require('./response')
 
 const SkyWay         = require('skywayjs')
-
-log4js.configure({
-  appenders: [
-    { type: "console", layout: { type: "basic" } }
-  ],
-  replaceConsole: true
-});
-
-const logger = log4js.getLogger('skPubSub')
 
 /**
  * @extends EventEmitter
@@ -199,7 +189,6 @@ class SiRuClient extends EventEmitter {
       // we'll push connection object to Array and set handler for this P2P
       this.skyway.on('connection', conn => {
         this.connections.push(conn)
-        logger.debug(`p2p connection is established as a callee (${conn.remoteId}).`)
 
         // setup handler
         conn.on('data', data => { this._handleP2PData(data) })
@@ -238,7 +227,6 @@ class SiRuClient extends EventEmitter {
 
       // send join room request to SkyWay signaling server
       this.on('roomJoined', () => {
-        logger.debug("receive roomJoined")
         resolv()
       })
     })
@@ -269,7 +257,6 @@ class SiRuClient extends EventEmitter {
         })
 
 
-      logger.debug(`p2p connection is established to ${destination}`)
       DeviceManager.register(conn)
     })
 
@@ -318,7 +305,7 @@ class SiRuClient extends EventEmitter {
         this.transactions = this.transactions.filter( obj => obj.transaction_id !== transaction_id)
       }
     } catch(e) {
-      logger.warn(e, data)
+      console.warn(e, data)
     }
   }
 
@@ -330,7 +317,6 @@ class SiRuClient extends EventEmitter {
   _cleanupP2P(conn) {
     conn.close()
     this.connections = this.connections.filter( _conn => {return conn !== _conn})
-    logger.debug("cleanup completed")
   }
 
   /**
@@ -380,11 +366,9 @@ class SiRuClient extends EventEmitter {
    * @private
    */
   _handleRoomJoin(mesg) {
-    logger.debug("_handleRoomJoin", mesg)
 
     if(mesg.src === this.myid) {
       // if user is me, just fire event
-      logger.debug("id is mine")
       this.emit('roomJoined', mesg.roomName)
       this._sendUserListRequest()
     } else {
@@ -400,7 +384,6 @@ class SiRuClient extends EventEmitter {
    * @private
    */
   _handleRoomLeave(mesg) {
-    logger.debug("_handleRoomLeave", mesg)
     // todo: if user is not me, close p2p
     // obtain connection object for remove
     const conns = this.connections.filter( _conn => { return mesg.src === _conn.remoteId })
@@ -413,7 +396,6 @@ class SiRuClient extends EventEmitter {
    * @private
    */
   _handleRoomData(mesg) {
-    logger.debug("_handleRoomData", mesg)
     // not sure, what should be done for this message
   }
 
@@ -423,7 +405,6 @@ class SiRuClient extends EventEmitter {
    * @private
    */
   _handleRoomLog(log) {
-    logger.debug("_handleRoomLog", log)
     // not sure, what should be done for this message
   }
 
@@ -437,7 +418,6 @@ class SiRuClient extends EventEmitter {
     // currently, room api has a bug that there are duplicated peerids
     // in user list. So, we'll eliminate it
     const _userList = _.uniq(userList)
-    logger.debug("_handleRoomUsers", _userList)
 
     // this is only called when this id join room.
     // in this case, we will connect to arm base devices
