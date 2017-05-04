@@ -29,7 +29,7 @@ client.on('connect', () => {
     client.publish('presence', `${client.myid}:hello world.`)
     const body = 'echo request:' + Date.now()
 
-    client.fetch('/echo/hello123'+Date.now(), {uuid, body})
+    client.fetch( uuid+'/echo/hello123'+Date.now(), {body})
       .then(res => {
         return res.text()
       })

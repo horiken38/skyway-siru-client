@@ -62,30 +62,34 @@ class SiRuClient extends EventEmitter {
 
   /**
    *
-   * @param {string} path - '/' etc.
+   * @param {string} uuid_path - device-uuid + '/' etc.
    * @param {object} options
-   * @param {string} options.uuid
-   * @param {string} options.method - 'GET' etc.
-   * @param {object} options.query
-   * @param {string} options.body
+   * @param {string} options.method - default is `GET`
+   * @param {object} options.query  - default is `{}`
+   * @param {string} options.body   - default is `null`
    */
-  fetch(path, options) {
+  fetch(uuid_path, options) {
     return new Promise((resolv, reject) => {
-      // fixme - validate
-      const uuid = options.uuid
+      const arr = uuid_path.split("/")
+      if(arr.length < 2) {
+        reject(new Error("uuid_path is invalide format"))
+        return
+      }
 
-      if(!uuid) reject(new Error("options.uuid does not specified"))
-
+      const uuid = arr[0]
       const conn = DeviceManager.getDataChannelConnection(uuid)
       if(!conn) reject(new Error(`no connection found for ${uuid}`))
 
       if(uuid && conn) {
         const transaction_id = Date.now()
-        const method = options.method || 'GET'
+        const method         = options.method || 'GET'
+        const path           = arr.slice(1).join("/")
+        const query          = options.query || {}
+        const body           = options.body || null
 
         this.transactions.push({uuid, conn, transaction_id, resolv, reject})
 
-        this.sendRequest(uuid, conn, transaction_id, method, path, options.query, options.body)
+        this.sendRequest(uuid, conn, transaction_id, method, path, query, body)
       }
     })
   }

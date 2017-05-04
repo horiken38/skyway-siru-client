@@ -22,7 +22,7 @@ client.on('meta', meta => {
   const uuid = meta.uuid // uuid of connected device
 
   // fetch echo api
-  client.fetch('/echo/hello', {uuid})
+  client.fetch( uuid+'/echo/hello' )
     .then(res => res.text())
     .then(text => console.log(text))
     // #=> 'hello'
