@@ -52971,7 +52971,7 @@ if(module.require) {
   module.exports = SiRuClient;
 } else {
   // browser
-  window.skPubSub = SiRuClient;
+  window.SiRuClient = SiRuClient;
 }
 
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(23)(module)))
