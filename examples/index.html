@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script src="../dist/skywayPubSub.js"></script>
+    <script src="../dist/SiRu-client.js"></script>
   </head>
   <body>
     <button>send hello world</button>
@@ -18,7 +18,7 @@
       <ul id="list"></ul>
     </div>
     <script>
-const client = new skPubSub('testroom', {key: 'db07bbb6-4ee8-4eb7-b0c2-b8b2e5c69ef9', debug: 0})
+const client = new SiRuClient('testroom', {key: 'db07bbb6-4ee8-4eb7-b0c2-b8b2e5c69ef9', debug: 0})
 let uuid
 
 client.on('connect', () => {
@@ -31,7 +31,7 @@ client.on('connect', () => {
 
     client.fetch('/echo/hello123'+Date.now(), {uuid, body})
       .then(res => {
-        return res.text() 
+        return res.text()
       })
       .then(text => {
         $("#fetch").text(text)
@@ -50,7 +50,7 @@ client.on("meta", profile => {
 
   profile.topics.forEach(topic => client.subscribe(topic.name))
 
-  
+
 
   if(profile.streaming.enable) {
     client.requestStreaming(profile.uuid)

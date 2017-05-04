@@ -6,7 +6,7 @@ var path = require('path')
 switch(process.env.NODE_ENV) {
   default:
     _entry = {
-      "skywayPubSub": "./src/index"
+      "SiRu-client": "./src/index"
     };
     break;
 }
@@ -20,7 +20,7 @@ module.exports = {
     filename: process.env.NODE_ENV === "production" ? "[name].min.js" : "[name].js"
   },
   module: {
-    preLoaders: [
+    rules: [
     ],
     loaders: [
       { test: /\.json$/, loader: 'json' },
@@ -45,10 +45,6 @@ module.exports = {
     "dgram": "empty",
     "net":   "empty",
     "child_process": "empty"
-  },
-  devServer: {
-    inline: true,
-    port: 8080
   }
 }
 

@@ -1,11 +1,11 @@
 /* entry point */
 
-const skPubSub = require('./libs/skPubSub')
+const SiRuClient = require('./libs/SiRuClient')
 
 if(module.require) {
   // node.js
-  module.exports = skPubSub;
+  module.exports = SiRuClient;
 } else {
   // browser
-  window.skPubSub = skPubSub;
+  window.SiRuClient = SiRuClient;
 }

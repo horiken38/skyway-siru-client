@@ -18,11 +18,10 @@ log4js.configure({
 const logger = log4js.getLogger('skPubSub')
 
 /**
- * Class that manages SkyWay virtual PubSub.
  * @extends EventEmitter
  *
  */
-class skPubSub extends EventEmitter {
+class SiRuClient extends EventEmitter {
   /**
    * constructor
    *
@@ -62,9 +61,9 @@ class skPubSub extends EventEmitter {
 
 
   /**
-   * 
+   *
    * @param {string} path - '/' etc.
-   * @param {object} options 
+   * @param {object} options
    * @param {string} options.uuid
    * @param {string} options.method - 'GET' etc.
    * @param {object} options.query
@@ -83,7 +82,7 @@ class skPubSub extends EventEmitter {
       if(uuid && conn) {
         const transaction_id = Date.now()
         const method = options.method || 'GET'
-        
+
         this.transactions.push({uuid, conn, transaction_id, resolv, reject})
 
         this.sendRequest(uuid, conn, transaction_id, method, path, options.query, options.body)
@@ -92,14 +91,14 @@ class skPubSub extends EventEmitter {
   }
 
   /**
-   * 
-   * @param {string} uuid 
-   * @param {string} conn 
-   * @param {string} transaction_id 
-   * @param {string} method 
-   * @param {string} path 
-   * @param {object} query 
-   * @param {string|object} body 
+   *
+   * @param {string} uuid
+   * @param {string} conn
+   * @param {string} transaction_id
+   * @param {string} method
+   * @param {string} path
+   * @param {object} query
+   * @param {string|object} body
    */
   sendRequest(uuid, conn, transaction_id, method, path, query, body){
     const _data = {
@@ -157,9 +156,9 @@ class skPubSub extends EventEmitter {
   }
 
   /**
-   * request streaming to SSG 
-   * 
-   * @param {*} uuid 
+   * request streaming to SSG
+   *
+   * @param {*} uuid
    */
   requestStreaming(uuid){
     const conn = DeviceManager.getDataChannelConnection(uuid)
@@ -310,7 +309,7 @@ class skPubSub extends EventEmitter {
           .forEach(obj => {
             obj.resolv(res)
           })
-        
+
         // remove processed object
         this.transactions = this.transactions.filter( obj => obj.transaction_id !== transaction_id)
       }
@@ -431,7 +430,7 @@ class skPubSub extends EventEmitter {
    */
   _handleRoomUsers(userList) {
 
-    // currently, room api has a bug that there are duplicated peerids 
+    // currently, room api has a bug that there are duplicated peerids
     // in user list. So, we'll eliminate it
     const _userList = _.uniq(userList)
     logger.debug("_handleRoomUsers", _userList)
@@ -486,4 +485,4 @@ class skPubSub extends EventEmitter {
   }
 }
 
-module.exports = skPubSub;
+module.exports = SiRuClient;
