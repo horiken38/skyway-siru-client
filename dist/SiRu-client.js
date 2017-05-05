@@ -6509,6 +6509,7 @@ class SiRuClient extends EventEmitter {
    */
   subscribe(topic) {
     this.topics.push(topic)
+    this.topics = _.uniq(this.topics)
   }
 
   /**
