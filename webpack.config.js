@@ -6,7 +6,7 @@ var path = require('path')
 switch(process.env.NODE_ENV) {
   default:
     _entry = {
-      "SiRu-client": "./src/index"
+      "SiRu-client": "./src/build"
     };
     break;
 }

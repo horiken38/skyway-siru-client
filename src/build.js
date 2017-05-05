@@ -2,4 +2,4 @@
 
 const SiRuClient = require('./libs/SiRuClient')
 
-module.exports = SiRuClient;
+window.SiRuClient = SiRuClient;
