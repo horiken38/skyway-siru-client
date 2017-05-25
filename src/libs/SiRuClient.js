@@ -1,11 +1,11 @@
-const EventEmitter = require('events').EventEmitter
+const EventEmitter  = require('events').EventEmitter
 const DeviceManager = require('./DeviceManager')
-const _            = require('underscore')
-const Rx           = require('rx')
-const util         = require('./util')
-const Response     = require('./response')
+const _             = require('underscore')
+const Rx            = require('rx')
+const util          = require('./util')
+const Response      = require('./response')
 
-const SkyWay         = require('skywayjs')
+const SkyWay        = require('../assets/skyway.js')
 
 /**
  * @extends EventEmitter
