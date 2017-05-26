@@ -6,7 +6,6 @@ class Response {
     this._text = options.text
   }
 
-
   text() {
     return new Promise((resolv, reject) => {
       if(this._text && typeof(this._text) === 'string') resolv(this._text)
@@ -16,11 +15,16 @@ class Response {
 
   json() {
     return new Promise((resolv, reject) => {
-      try {
-        resolv(JSON.parse(this.text))
-      } catch(err) {
+      this.text().then(text => {
+        try {
+          const json = JSON.parse(text)
+          resolv(json)
+        } catch(err) {
+          reject(err)
+        }
+      }).catch(err => {
         reject(err)
-      }
+      })
     })
   }
 }

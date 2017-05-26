@@ -464,6 +464,7 @@ class SiRuClient extends EventEmitter {
     this.connections = []
     this.topics = []
     this.skyway = undefined
+    this.chunks = {}
 
     this.transactions = []
 
@@ -722,20 +723,53 @@ class SiRuClient extends EventEmitter {
         const status = message.status
         const transaction_id = message.transaction_id
         const method = message.method
-        const text = message.body
 
         if(!transaction_id) throw new Error("transaction_id is not specified")
 
-        const res = new Response({status, transaction_id, method, text})
+        if ( !message.chunked ) {
+          const text = message.body
+          const res = new Response({status, transaction_id, method, text})
 
-        this.transactions
-          .filter(obj => obj.transaction_id === transaction_id)
-          .forEach(obj => {
-            obj.resolv(res)
-          })
+          this.transactions
+            .filter(obj => obj.transaction_id === transaction_id)
+            .forEach(obj => {
+              obj.resolv(res)
+            })
 
-        // remove processed object
-        this.transactions = this.transactions.filter( obj => obj.transaction_id !== transaction_id)
+          // remove processed object
+          this.transactions = this.transactions.filter( obj => obj.transaction_id !== transaction_id)
+        } else {
+          // when message is chunked
+
+          // initialize when it is not exist
+          if( !this.chunks[transaction_id] ) {
+            this.chunks[transaction_id] = {
+              status,
+              method,
+              len: message.chunk_len,
+              chunks:[]
+            }
+          }
+
+          this.chunks[transaction_id].chunks[message.idx] = message.chunk
+          console.log(transaction_id, message.idx)
+
+          // when all chunks are received, reassemble data and resolv
+          if( _.compact(this.chunks[transaction_id].chunks).length === message.chunk_len ) {
+            const text = this.chunks[transaction_id].chunks.join("")
+            const res = new Response({status, transaction_id, method, text})
+
+            this.transactions
+              .filter(obj => obj.transaction_id === transaction_id)
+              .forEach(obj => {
+                obj.resolv(res)
+              })
+
+            // remove processed object
+            delete this.chunks[transaction_id]
+            this.transactions = this.transactions.filter( obj => obj.transaction_id !== transaction_id)
+          }
+        }
       }
     } catch(e) {
       console.warn(e, data)
