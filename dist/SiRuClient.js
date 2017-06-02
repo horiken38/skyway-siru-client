@@ -752,7 +752,6 @@ class SiRuClient extends EventEmitter {
           }
 
           this.chunks[transaction_id].chunks[message.idx] = message.chunk
-          console.log(transaction_id, message.idx)
 
           // when all chunks are received, reassemble data and resolv
           if( _.compact(this.chunks[transaction_id].chunks).length === message.chunk_len ) {
@@ -31674,7 +31673,6 @@ class Response {
     this._text = options.text
   }
 
-
   text() {
     return new Promise((resolv, reject) => {
       if(this._text && typeof(this._text) === 'string') resolv(this._text)
@@ -31684,16 +31682,22 @@ class Response {
 
   json() {
     return new Promise((resolv, reject) => {
-      try {
-        resolv(JSON.parse(this.text))
-      } catch(err) {
+      this.text().then(text => {
+        try {
+          const json = JSON.parse(text)
+          resolv(json)
+        } catch(err) {
+          reject(err)
+        }
+      }).catch(err => {
         reject(err)
-      }
+      })
     })
   }
 }
 
 module.exports = Response
+
 
 /***/ }),
 /* 18 */
@@ -31749,4 +31753,4 @@ module.exports = util
 
 /***/ })
 /******/ ]);
-//# sourceMappingURL=SiRu-client.js.map
+//# sourceMappingURL=SiRuClient.js.map

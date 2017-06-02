@@ -1,12 +1,12 @@
-var webpack = require('webpack');
+const webpack = require('webpack');
 
-var path = require('path')
-  , _entry;
+const path = require('path')
+let _entry
 
 switch(process.env.NODE_ENV) {
   default:
     _entry = {
-      "SiRu-client": "./src/build"
+      "SiRuClient": "./src/build"
     };
     break;
 }
@@ -25,17 +25,19 @@ module.exports = {
     loaders: [
       { test: /\.json$/, loader: 'json' },
       {
-        test: /\.(js|jsx)?$/,
-        exclude: /(node_modules)/,
-        loader: 'babel', // 'babel-loader' is also a legal name to reference
-        query: {
-          presets: ['react', 'es2015']
-        }
+        test: /\.js$/,
+        exclude: /node_modules/,
+        use: [{
+          loader: 'babel-loader',
+          options: {
+            presets: ['es2015']
+          }
+        }],
       },
     ]
   },
   resolve: {
-    extensions: ['.js', '.jsx', '.json']
+    extensions: ['.js', '.json']
   },
   plugins: [
   ],
