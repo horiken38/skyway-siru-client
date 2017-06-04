@@ -1,6 +1,6 @@
 {
   "name": "skyway-siru-client",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "SkyWay IoT sdk Room Utility for client",
   "main": "src/index.js",
   "directories": {
