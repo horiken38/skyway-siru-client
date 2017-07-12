@@ -25,7 +25,7 @@ client.on('meta', meta => {
     .then(text => console.log(text))
 
   // display remote camera streaming
-  client.requestStreaming(profile.uuid)
+  client.requestStreaming(uuid)
 })
 
 client.on("stream", (stream, uuid) => {
