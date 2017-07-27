@@ -1,4 +1,6 @@
-const Enum         = require('enum')
+// @flow
+
+import Enum from 'enum'
 
 const clientMessages = new Enum([
   'SEND_OFFER',
@@ -33,14 +35,34 @@ const serverMessages = new Enum([
 
 
 
-const util = {
+const util: {
+  KEEPALIVETIMER: number,
+  MESSAGE_TYPES: any,
+  isJSONString: Function
+}= {
   KEEPALIVETIMER: 25000,
   MESSAGE_TYPES : {
     CLIENT: clientMessages,
     SERVER: serverMessages
+  },
+
+  /**
+  * check str is JSON string or not
+  *
+  * @params {string} str
+  */
+  isJSONString: function(str: string): boolean {
+    if(typeof(str) !== 'string') return false
+
+    try {
+      const tmp = JSON.parse(str)
+      return true
+    } catch(e) {
+      return false
+    }
   }
 }
 
 
+export default util
 
-module.exports = util

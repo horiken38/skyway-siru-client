@@ -181,8 +181,7 @@ class SiRuClient extends EventEmitter {
       // finished establishing SkyWay connection
       this.skyway.on('open', id => {
         this.myid = id;
-        DeviceManager.start(this.myid)
-        this._setDeviceManagerHandler()
+        DeviceManager.setPeerID(this.myid)
         this._setSkyWayHandler()
         resolv();
       })
@@ -260,6 +259,8 @@ class SiRuClient extends EventEmitter {
 
 
       DeviceManager.register(conn)
+        .then(device => this.emit('meta', device.profile))
+        .catch(err => console.warn(err.message))
     })
 
     // when data received from peer.
@@ -384,14 +385,6 @@ class SiRuClient extends EventEmitter {
     socket.on(util.MESSAGE_TYPES.SERVER.ROOM_USERS.key, mesg => {
       if(this.roomName === mesg.roomName) this._handleRoomUsers(mesg.userList)
     });
-  }
-
-  /**
-   * set DeviceManager handler
-   * @private
-   */
-  _setDeviceManagerHandler() {
-    DeviceManager.on('meta', data => this.emit('meta', data))
   }
 
   /**
