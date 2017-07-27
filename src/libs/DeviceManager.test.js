@@ -5,11 +5,11 @@ const EventEmitter = require('events').EventEmitter
 let DeviceManager = null
 
 
-beforeAll(() => {
+beforeEach(() => {
   DeviceManager = require('./DeviceManager')
 })
 
-afterAll(() => {
+afterEach(() => {
   DeviceManager = null
 })
 
@@ -36,7 +36,8 @@ describe('_register() test', () => {
       target: 'profile',
       method: 'get',
       body: {
-        uuid: 'test-uuid'
+        uuid: 'test-uuid',
+        ssg_peerid: 'ssg-peerid'
       }
     }
   })
@@ -53,7 +54,7 @@ describe('_register() test', () => {
   })
 
   it('will register only one later device, when same uuid is used', () => {
-    const data2 = Object.assign({}, data, { body: { uuid: 'test-uuid', message: 'latest' }})
+    const data2 = Object.assign({}, data, { body: { uuid: 'test-uuid', peerid: 'test-peerid', message: 'latest' }})
 
     return DeviceManager._register(conn, data)
       .then(() => DeviceManager._register(conn, data2))
@@ -131,46 +132,51 @@ describe('_register() test', () => {
   })
 })
 
+class Conn extends EventEmitter {
+  constructor() {
+    super()
+
+    this.preamble = 'SSG:'
+    this.body = JSON.stringify({
+      type: 'response',
+      target: 'profile',
+      method: 'get',
+      body: {
+        uuid: 'test-uuid',
+        ssg_peerid: 'ssg-peerid'
+      }
+    })
+    this.data = ''
+    this.createData()
+  }
+
+  createData() {
+    this.data = [this.preamble, this.body].join("")
+  }
+
+  send(path) {
+    if(path === 'SSG:profile/get') this.emit('data', Buffer.from(this.data))
+  }
+}
+
+
+
 describe('register() test', () => {
   let conn,device
-
-  class Conn extends EventEmitter {
-    constructor() {
-      super()
-
-      this.preamble = 'SSG:'
-      this.body = JSON.stringify({
-        type: 'response',
-        target: 'profile',
-        method: 'get',
-        body: {
-          uuid: 'test-uuid'
-        }
-      })
-      this.data = ''
-      this.createData()
-    }
-
-    createData() {
-      this.data = [this.preamble, this.body].join("")
-    }
-
-    send(path) {
-      if(path === 'SSG:profile/get') this.emit('data', Buffer.from(this.data))
-    }
-  }
 
   beforeEach(() => {
     conn = new Conn()
     device = new Device({
       uuid: 'test-uuid',
-      profile: { uuid: 'test-uuid' },
-      connection: conn
+      profile: { uuid: 'test-uuid', ssg_peerid: 'ssg-peerid' },
+      connection: conn,
+      peerid: 'ssg-peerid'
     })
   })
 
   afterEach(() => {
     conn = null
+    device = null
   })
 
   it('will register device, when profile response from peer is correct', () => {
@@ -180,10 +186,120 @@ describe('register() test', () => {
     })
   })
 
-  it('will raise error, when profile response body from peer is incorrect', () => {
+  it('will raise timeout error, when profile response body is too short', () => {
     conn.body = ''
     conn.createData()
+    jest.useFakeTimers()
 
-    // todo - useFakeTimer and runAllTimers
+    const test = DeviceManager.register(conn)
+      .then( device => console.log(device))
+      .catch( err => {
+        expect(err.message).toMatch(/timeout/)
+      })
+    jest.runAllTimers()
+    return test
+  })
+
+  it('will raise timeout error, when profile preamble of response body is incorrect', () => {
+    conn.preamble = 'ssg:'
+    conn.createData()
+    jest.useFakeTimers()
+
+    const test = DeviceManager.register(conn)
+      .then( device => console.log(device))
+      .catch( err => {
+        expect(err.message).toMatch(/timeout/)
+      })
+    jest.runAllTimers()
+    return test
+  })
+
+  it('will raise timeout error, when profile response does not include uuid', () => {
+    conn.body = JSON.stringify({
+      type: 'response', target: 'profile', method: 'get',
+      body: { UUID: 'test-uuid', peerid: 'ssg-peerid' }
+    })
+
+    conn.createData()
+    jest.useFakeTimers()
+
+    const test = DeviceManager.register(conn)
+      .then( device => console.log(device))
+      .catch( err => {
+        expect(err.message).toMatch(/timeout/)
+      })
+    jest.runAllTimers()
+    return test
+  })
+
+  it('will raise timeout error, when profile response does not include peerid', () => {
+    conn.body = JSON.stringify({
+      type: 'response', target: 'profile', method: 'get',
+      body: { uuid: 'test-uuid', PEERID: 'ssg-peerid' }
+    })
+
+    conn.createData()
+    jest.useFakeTimers()
+
+    const test = DeviceManager.register(conn)
+      .then( device => console.log(device))
+      .catch( err => {
+        expect(err.message).toMatch(/timeout/)
+      })
+    jest.runAllTimers()
+    return test
+  })
+})
+
+describe('utility methods test', () => {
+  let conn, device
+
+  beforeEach(() => {
+    conn = new Conn()
+    DeviceManager.register(conn)
+
+    device = new Device({
+      uuid: 'test-uuid',
+      profile: { uuid: 'test-uuid', ssg_peerid: 'ssg-peerid' },
+      connection: conn,
+      peerid: 'ssg-peerid'
+    })
+  })
+
+  afterEach(() => {
+    conn = null
+    device = null
+  })
+
+  test('getDataChannelConnection() returns connection instance when uuid exists', () => {
+    expect(DeviceManager.getDataChannelConnection('test-uuid')).toMatchObject(conn)
+  })
+
+  test('getDataChannelConnection() returns null when uuid unexists', () => {
+    expect(DeviceManager.getDataChannelConnection('unexist-uuid')).toBeNull()
+  })
+
+  test('getPeerid() returns peerid when uuid exists', () => {
+    expect(DeviceManager.getPeerid('test-uuid')).toBe('ssg-peerid')
+  })
+
+  test('getPeerid() returns NULL when uuid unexists', () => {
+    expect(DeviceManager.getPeerid('unexist-uuid')).toBeNull()
+  })
+
+  test('getUUID() returns uuid when peerid exists', () => {
+    expect(DeviceManager.getUUID('ssg-peerid')).toBe('test-uuid')
+  })
+
+  test('getUUID() returns NULL when peerid unexists', () => {
+    expect(DeviceManager.getUUID('unexist-peerid')).toBeNull()
+  })
+
+  test('exist() returns true when uuid exists', () => {
+    expect(DeviceManager.exist('test-uuid')).toBe(true)
+  })
+
+  test('exist() returns false when uuid unexists', () => {
+    expect(DeviceManager.exist('unexist-uuid')).toBe(false)
   })
 })

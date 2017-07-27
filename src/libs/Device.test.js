@@ -5,9 +5,10 @@ describe('Device test', () => {
 
   beforeAll(() => {
     params = Object.assign({}, {
-      uuid: 'hogehoge',
+      uuid: 'test-uuid',
       profile: {},
-      connection: {}
+      connection: {},
+      peerid: 'test-peerid'
     })
   })
 

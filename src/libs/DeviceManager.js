@@ -44,9 +44,11 @@ class DeviceManager {
    */
   register(conn: Object): Promise<any> {
     return new Promise((resolv, reject) => {
+      let retFlag = false
+
       // listener for profile response
       const registerListener =  data => {
-        if(data.length < 4) return
+        if(data.length <= 4) return
 
         const head = data.slice(0,4).toString()
           , body = data.slice(4).toString()
@@ -56,9 +58,11 @@ class DeviceManager {
         this._register(conn, JSON.parse(body))
           .then((device) => {
             conn.removeListener('data', registerListener)
+            retFlag = true
             resolv(device)
           }).catch(err => {
             conn.removeListener('data', registerListener)
+            retFlag = true
             reject(err)
           })
       }
@@ -68,6 +72,10 @@ class DeviceManager {
 
       // send profile request
       conn.send(PROFILE_GET)
+
+      setTimeout(() => {
+        if(!retFlag) reject( new Error('register: timeout'))
+      }, this.timeout)
     })
   }
 
@@ -79,13 +87,14 @@ class DeviceManager {
   _register(conn: Object, data: Object): Promise<any> {
     return new Promise((resolv, reject) => {
       const uuid      = data.body && data.body.uuid
+        , peerid      = data.body && ( data.body.peerid || data.body.ssg_peerid )
         , connection  = conn
         , profile     = data.body
       let retFlag = false
 
       try {
         if(data.type === 'response' && data.target === 'profile' && data.method === 'get') {
-          const device = new Device({uuid, connection, profile})
+          const device = new Device({uuid, peerid, connection, profile})
 
           // we will avoid duplicationg uuid. previous one will be removed
           this.devices = this.devices.filter(_device => _device.uuid !== uuid)
@@ -114,8 +123,8 @@ class DeviceManager {
   getDataChannelConnection(uuid: string): Object | null{
     let conn = null;
 
-    this.devices.filter(obj => {return obj.uuid === uuid})
-      .forEach(obj => conn = obj.connection )
+    this.devices.filter(device => {return device.uuid === uuid})
+      .forEach(device => conn = device.connection )
 
     return conn;
   }
@@ -127,8 +136,8 @@ class DeviceManager {
   getPeerid(uuid: string): string | null {
     let peerid = null;
 
-    this.devices.filter(obj => obj.uuid === uuid)
-      .forEach(obj => peerid = obj.profile.ssg_peerid)
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => peerid = device.peerid )
 
     return peerid
   }
@@ -140,8 +149,8 @@ class DeviceManager {
   getUUID(peerid: string): string | null {
     let uuid = null;
 
-    this.devices.filter(obj => obj.profile.ssg_peerid === peerid)
-      .forEach(obj => uuid = obj.uuid)
+    this.devices.filter(device => device.peerid === peerid)
+      .forEach(device => uuid = device.uuid)
 
     return uuid
   }
