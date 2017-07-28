@@ -1,17 +1,29 @@
-const EventEmitter  = require('events').EventEmitter
-const DeviceManager = require('./DeviceManager')
-const _             = require('underscore')
-const Rx            = require('rx')
-const util          = require('./util')
-const Response      = require('./response')
+// @flow
 
-const SkyWay        = require('../assets/skyway.js')
+import util          from './util'
+import _             from 'underscore'
+
+import EventEmitter  from 'events'
+import DeviceManager from './DeviceManager'
+import Rx            from 'rx'
+import Response      from './response'
+
+import SkyWay        from '../assets/skyway.js'
 
 /**
  * @extends EventEmitter
  *
  */
 class SiRuClient extends EventEmitter {
+  roomName:    string
+  connections: Array<Object>
+  topics:      Array<string>
+  skyway:      SkyWay
+  chunks:      Object
+  transactions: Array<Object>
+  options:     Object
+  myid:        string
+
   /**
    * constructor
    *
@@ -20,7 +32,7 @@ class SiRuClient extends EventEmitter {
    * @param {string} options.key - SkyWay API key.
    * @param {string} [options.origin] - The domain bounder for API key. Default is 'https:/localhost'
    */
-  constructor(roomName, options) {
+  constructor(roomName: string, options: Object) {
     super();
 
     // validate arguments
@@ -154,27 +166,36 @@ class SiRuClient extends EventEmitter {
   /**
    * request streaming to SSG
    *
-   * @param {*} uuid
+   * @param {string} uuid
    */
-  requestStreaming(uuid){
-    const conn = DeviceManager.getDataChannelConnection(uuid)
-    const peerid = DeviceManager.getPeerid(uuid)
+  requestStreaming(uuid: string): Promise<any>{
+    return new Promise((resolv, reject) => {
+      const conn = DeviceManager.getDataChannelConnection(uuid)
+      const peerid = DeviceManager.getPeerid(uuid)
 
-    if(!conn || !peerid) reject(new Error(`cannot get connection or peerid`))
+      if(!conn || !peerid) reject(new Error(`cannot get connection or peerid`))
 
-    conn.send(`SSG:stream/start,${this.myid}`)
+      if(!conn) conn.send(`SSG:stream/start,${this.myid}`)
+    })
   }
 
-  stopStreaming(uuid){
-    const conn = DeviceManager.getDataChannelConnection(uuid)
-    conn.send("SSG:stream/stop")
+  /**
+   * request stop streaming to SSG
+   *
+   * @param {string} uuid
+   */
+  stopStreaming(uuid: string): Promise<any> {
+    return new Promise((resolv, reject) => {
+      const conn = DeviceManager.getDataChannelConnection(uuid)
+      if(conn) conn.send("SSG:stream/stop")
+    })
   }
 
   /**
    * Start establishing SkyWay connection
    * @private
    */
-  _startSkyWayConnection() {
+  _startSkyWayConnection(): Promise<any> {
     return new Promise((resolv, reject) => {
       this.skyway = new SkyWay(this.options)
 
@@ -238,7 +259,7 @@ class SiRuClient extends EventEmitter {
    * @param {string} destination - destination peer id
    * @private
    */
-  _createP2PConnection(destination) {
+  _createP2PConnection(destination: string): void {
     // check whether connection is already existing.
     if( this.connections.filter( conn => conn.remoteId === destination).length === 1 ) return;
 
@@ -273,12 +294,10 @@ class SiRuClient extends EventEmitter {
   /**
    * Handle P2P data
    * If topic is subscribed, fire 'message' event
-   * @param {object} data - Data sent by peer
-   * @param {string} data.topic - The name of topic
-   * @param {string|object} - data.payload - payload data
+   * @param {string} data - DataChannel data (it must be JSON string)
    * @private
    */
-  _handleP2PData(data) {
+  _handleP2PData(data: string): void {
     try {
       const _data   = JSON.parse(data)
       const topic   = _data.topic
@@ -349,7 +368,7 @@ class SiRuClient extends EventEmitter {
    * @param {object} conn - DataConnection object
    * @private
    */
-  _cleanupP2P(conn) {
+  _cleanupP2P(conn: Object): void {
     conn.close()
     this.connections = this.connections.filter( _conn => {return conn !== _conn})
   }
@@ -358,7 +377,7 @@ class SiRuClient extends EventEmitter {
    * setup handler for skyway (for joinRoom)
    * @private
    */
-  _setSkyWayHandler() {
+  _setSkyWayHandler(): void {
     const socket = this.skyway.socket
 
     // when user join message received
@@ -392,7 +411,7 @@ class SiRuClient extends EventEmitter {
    * @param {object} mesg
    * @private
    */
-  _handleRoomJoin(mesg) {
+  _handleRoomJoin(mesg: Object): void {
 
     if(mesg.src === this.myid) {
       // if user is me, just fire event
@@ -410,8 +429,7 @@ class SiRuClient extends EventEmitter {
    * @param {object} mesg
    * @private
    */
-  _handleRoomLeave(mesg) {
-    // todo: if user is not me, close p2p
+  _handleRoomLeave(mesg: Object): void {
     // obtain connection object for remove
     const conns = this.connections.filter( _conn => { return mesg.src === _conn.remoteId })
     conns.forEach( conn => { this._cleanupP2P(conn)})
@@ -422,7 +440,7 @@ class SiRuClient extends EventEmitter {
    * @param {object} mesg
    * @private
    */
-  _handleRoomData(mesg) {
+  _handleRoomData(mesg: Object): void {
     // not sure, what should be done for this message
   }
 
@@ -431,7 +449,7 @@ class SiRuClient extends EventEmitter {
    * @param {string} log
    * @private
    */
-  _handleRoomLog(log) {
+  _handleRoomLog(log: string): void {
     // not sure, what should be done for this message
   }
 
@@ -440,8 +458,7 @@ class SiRuClient extends EventEmitter {
    * @param {Array} userList
    * @private
    */
-  _handleRoomUsers(userList) {
-
+  _handleRoomUsers(userList: Array<string>): void {
     // currently, room api has a bug that there are duplicated peerids
     // in user list. So, we'll eliminate it
     const _userList = _.uniq(userList)
@@ -458,7 +475,7 @@ class SiRuClient extends EventEmitter {
    * send request to get user list to signaling server
    * @private
    */
-  _sendUserListRequest() {
+  _sendUserListRequest(): void {
     const data = {
       roomName: this.roomName,
       type: 'media'
@@ -473,7 +490,7 @@ class SiRuClient extends EventEmitter {
    * @param {string} name
    * @private
    */
-  _checkRoomName(name) {
+  _checkRoomName(name: string): boolean {
     if(!name || typeof(name) !== 'string' || !name.match(/^[a-zA-Z0-9-_.=]+$/) ) return false
 
     return true
@@ -488,7 +505,7 @@ class SiRuClient extends EventEmitter {
    * @param {string} [options.domain]
    * @private
    */
-  _checkOptions(options) {
+  _checkOptions(options: Object): boolean {
     if(!options.key || typeof(options.key) !== 'string') return false
     if(options.domain && typeof(options.domain) !== 'string') return false
 
@@ -496,4 +513,4 @@ class SiRuClient extends EventEmitter {
   }
 }
 
-module.exports = SiRuClient;
+export default SiRuClient;
