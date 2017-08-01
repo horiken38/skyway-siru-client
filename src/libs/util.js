@@ -37,10 +37,12 @@ const serverMessages = new Enum([
 
 const util: {
   KEEPALIVETIMER: number,
+  TIMEOUT: number,
   MESSAGE_TYPES: any,
   isJSONString: Function
 }= {
   KEEPALIVETIMER: 25000,
+  TIMEOUT: 5000,
   MESSAGE_TYPES : {
     CLIENT: clientMessages,
     SERVER: serverMessages
