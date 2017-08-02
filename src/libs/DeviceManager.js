@@ -80,6 +80,71 @@ class DeviceManager {
   }
 
   /**
+   * unregister device
+   *
+   * @param {string} uuid - uuid of target device
+   *
+   */
+  unregister(uuid: string): Promise<any> {
+    return new Promise((resolv, reject) => {
+      if(!this.exist(uuid)) {
+        reject(new Error(`try to unregister ${uuid}, but it does not exist`))
+      } else {
+        this.devices = this.devices.filter(device => device.uuid !== uuid)
+        resolv()
+      }
+    })
+  }
+
+  /**
+   * set call object
+   *
+   * @param {string} uuid
+   * @param {Object} callobj
+   */
+  setCallObject(uuid: string, callobj: Object): boolean {
+    let ret = false
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => {
+        ret = device.setCallObj(callobj)
+      })
+
+    return ret
+  }
+
+  /**
+   * unset call object
+   *
+   * @param {string} uuid
+   */
+  unsetCallObject(uuid: string): boolean {
+    let ret = false
+
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => {
+        device.unsetCallObj()
+        ret = true
+      })
+
+    return ret
+  }
+
+  /**
+   * get call object
+   *
+   * @param {string} uuid
+   */
+  getCallObject(uuid: string): Object|null {
+    let ret = null
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => {
+        ret = device.callobj
+      })
+
+    return ret
+  }
+
+  /**
    *
    * @param {object} conn - connection object
    * @param {object} data - data

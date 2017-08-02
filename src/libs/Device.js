@@ -5,6 +5,7 @@ class Device {
   profile: Object // profile data
   connection: Object // SkyWay connection object of this device
   peerid: string // peerid of this device
+  callobj: Object|null // SkyWay call object of this device
 
   /**
    * @params {string} uuid
@@ -23,6 +24,25 @@ class Device {
     this.profile = profile
     this.connection = connection
     this.peerid = peerid
+    this.callobj = null
+  }
+
+  /**
+   * @param {Object} callobj
+   */
+  setCallObj(callobj: Object): boolean {
+    if(callobj !== null && typeof(callobj) === 'object') {
+      this.callobj = callobj
+      return true
+    } else {
+      return false
+    }
+  }
+
+  /**
+   */
+  unsetCallObj(): void {
+    this.callobj = null
   }
 }
 

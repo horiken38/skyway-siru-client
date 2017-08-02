@@ -1,6 +1,6 @@
 import Device from './Device'
 
-describe('Device test', () => {
+describe('constructor test', () => {
   let params
 
   beforeAll(() => {
@@ -34,6 +34,40 @@ describe('Device test', () => {
     params.connection = 0
 
     expect(() => new Device(params)).toThrow()
+  })
+})
+
+describe('setCallObj and unsetCallObj test', () => {
+  let device,params
+
+  beforeEach(() => {
+    params = Object.assign({}, {
+      uuid: 'test-uuid',
+      profile: {},
+      connection: {},
+      peerid: 'test-peerid'
+    })
+    device = new Device(params)
+  })
+
+  afterEach(() => {
+    params = {}
+    device = null
+  })
+
+  test('setCallObj(callobj) return true, when typeof callobj equal object', () => {
+    expect(device.setCallObj({})).toBe(true)
+  })
+
+  test('setCallObj(callobj) return false, when typeof callobj is not object', () => {
+    expect(device.setCallObj(null)).toBe(false)
+  })
+
+  test('unsetCallObj() remove callobj', () => {
+    device.setCallObj({})
+    expect(device.callobj).toBeInstanceOf(Object)
+    device.unsetCallObj()
+    expect(device.callobj).toBeNull()
   })
 })
 

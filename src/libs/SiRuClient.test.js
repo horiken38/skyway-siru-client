@@ -17,6 +17,7 @@ describe('constructor() test', () => {
   test('when constructed, it will emit "SKYWAY_CONNECTED", "MESSAGEHUB_CONNECTED", "CONNECTED"  then "WAITING" messages', done => {
     jest.useFakeTimers()
     const siru = new SiRuClient(roomName, {key})
+    jest.runAllTimers()
     const __events = []
 
     // check making instance succeeded
@@ -32,7 +33,6 @@ describe('constructor() test', () => {
       }
     })
 
-    jest.runAllTimers()
   })
 
   it('will raise error, when roomName is not specified', () => {

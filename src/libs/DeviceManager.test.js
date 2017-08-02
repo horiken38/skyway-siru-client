@@ -251,6 +251,129 @@ describe('register() test', () => {
   })
 })
 
+describe('unregister() test', () => {
+  let conn, device
+
+  beforeEach(() => {
+    conn = new Conn()
+    device = new Device({
+      uuid: 'test-uuid',
+      profile: { uuid: 'test-uuid', ssg_peerid: 'ssg-peerid' },
+      connection: conn,
+      peerid: 'ssg-peerid'
+    })
+  })
+
+  afterEach(() => {
+    conn = null
+    device = null
+  })
+
+  it('will remove device, when proper uuid is specified', () => {
+    return DeviceManager.register(conn)
+      .then( device => {
+        expect(DeviceManager.devices).toHaveLength(1)
+        return DeviceManager.unregister(device.uuid)
+      })
+      .then( () => expect(DeviceManager.devices).toHaveLength(0) )
+  })
+
+  it('will raise reject, when uuid is not exist', () => {
+    return DeviceManager.register(conn)
+      .then( device => {
+        expect(DeviceManager.devices).toHaveLength(1)
+        return DeviceManager.unregister('unexist-uuid')
+      }).catch(err => expect(err).toBeDefined())
+  })
+})
+
+describe('setCallObect(uuid, call) test', () =>{
+  let conn, device
+
+  beforeEach(() => {
+    conn = new Conn()
+    device = new Device({
+      uuid: 'test-uuid',
+      profile: { uuid: 'test-uuid', ssg_peerid: 'ssg-peerid' },
+      connection: conn,
+      peerid: 'ssg-peerid'
+    })
+  })
+
+  afterEach(() => {
+    conn = null
+    device = null
+  })
+
+  it('will set call object, when uuid is exist. then return true', () => {
+    expect(DeviceManager.setCallObject('test-uuid', {})).toBe(true)
+  })
+
+  it('will return false, when uuid is unexist.', () => {
+    expect(DeviceManager.setCallObject('unexist-uuid', {})).toBe(false)
+  })
+})
+
+describe('unsetCallObject(uuid) test', () => {
+  let conn, device
+
+  beforeEach(() => {
+    conn = new Conn()
+    device = new Device({
+      uuid: 'test-uuid',
+      profile: { uuid: 'test-uuid', ssg_peerid: 'ssg-peerid' },
+      connection: conn,
+      peerid: 'ssg-peerid'
+    })
+    DeviceManager.setCallObject('test-uuid', {})
+  })
+
+  afterEach(() => {
+    conn = null
+    device = null
+  })
+
+  it('will return true, when uuid is exist', () => {
+    expect(DeviceManager.unsetCallObject('test-uuid')).toBe(true)
+  })
+
+  it('will return false, when uuid is unexist', () => {
+    expect(DeviceManager.unsetCallObject('unexist-uuid')).toBe(false)
+  })
+})
+
+describe('getCallObject(uuid) test', () => {
+  let conn, device, callObj
+  class Call {
+  }
+
+  beforeEach(() => {
+    conn = new Conn()
+    callObj = new Call()
+    device = new Device({
+      uuid: 'test-uuid',
+      profile: { uuid: 'test-uuid', ssg_peerid: 'ssg-peerid' },
+      connection: conn,
+      peerid: 'ssg-peerid'
+    })
+    DeviceManager.setCallObject('test-uuid', callObj)
+  })
+
+  afterEach(() => {
+    conn = null
+    device = null
+    callObj = null
+  })
+
+  it('will return Object, when uuid is exist', () => {
+    expect(DeviceManager.getCallObject('test-uuid')).toBeInstanceOf(Call)
+  })
+
+  it('will return null, when uuid is unexist', () => {
+    expect(DeviceManager.getCallObject('unexist-uuid')).toBeNull()
+  })
+})
+
 describe('utility methods test', () => {
   let conn, device
 
