@@ -36,17 +36,22 @@ describe('constructor() test', () => {
     // check making instance succeeded
     expect(siru).toBeInstanceOf(SiRuClient)
 
-    // after construction, 'connect' message will be fired
-    siru.on('state:change', (state) => {
+    // after construction, 'connect' message will be fired. we will check state events at that moment.
+    siru.on('state:change', state => {
       __events.push(state)
-
-      if(state === _.last(expected)) {
-        expect(__events).toMatchObject(expected)
-        siru = null
-        done()
-      }
     })
 
+    siru.on('connect', () => {
+      expect(__events).toMatchObject(expected)
+      done()
+    })
+  })
+
+  it('will fire meta event, after creation finished.', done => {
+    siru.on('meta', profile => {
+      expect(profile).toBeInstanceOf(Object)
+      done()
+    })
   })
 
   it('will raise error, when roomName is not specified', () => {
@@ -97,12 +102,12 @@ describe('pubsub test', () => {
   })
 
   test('subscribe add topic', () => {
-    expect(siru.subscribe('test')).toBe(true)
+    expect(siru.subscribe('test')).toBeUndefined()
     expect(siru.topics).toMatchObject(['test'])
   })
 
-  test('subscribe will return false when topic is not string', () => {
-    expect(siru.subscribe(0)).toBe(false)
+  test('subscribe will raise error when topic is not string', () => {
+    expect( () => siru.subscribe(0)).toThrow()
   })
 
   test('when subscribe called with same topic, only one ', () => {
@@ -117,6 +122,10 @@ describe('pubsub test', () => {
     expect(siru.topics).toMatchObject(['test', 'other-topic'])
     siru.unsubscribe('other-topic')
     expect(siru.topics).toMatchObject(['test'])
+  })
+
+  test('unsubscribe will raise error when topic is not string', () => {
+    expect( () => siru.unsubscribe(0)).toThrow()
   })
 
   test('publish will fire string message, when subscribed', done => {
@@ -141,12 +150,12 @@ describe('pubsub test', () => {
     siru.publish('test', {str: 'hello'})
   })
 
-  test('publish will return false, when topic is not string', () => {
-    expect(siru.publish(0, 'hoge')).toBe(false)
+  test('publish will raise error, when topic is not string', () => {
+    expect(() => siru.publish(0, 'hoge')).toThrow()
   })
 
-  test('publish will return false, when message is not string', () => {
-    expect(siru.publish('test', 0)).toBe(false)
+  test('publish will raise error, when message is not string', () => {
+    expect(() => siru.publish('test', 0)).toThrow()
   })
 
   test('publish will not be fired, when not subscribed', done => {

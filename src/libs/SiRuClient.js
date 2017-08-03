@@ -102,6 +102,7 @@ class SiRuClient extends EventEmitter {
         return this._next()
       }).then(() => {
         this._setState(STATES.STARTED.key)
+        this.emit("connect")
       }).catch(err => {throw err})
   }
 
@@ -168,7 +169,7 @@ class SiRuClient extends EventEmitter {
    * @param {string} topic
    * @param {string|object} data
    */
-  publish(topic: string, data: string|Object): boolean {
+  publish(topic: string, data: string|Object): void {
     if(typeof(topic) === 'string' && (typeof(data) === 'string' || typeof(data) === 'object')) {
       const _data = {
         topic,
@@ -183,10 +184,9 @@ class SiRuClient extends EventEmitter {
 
       // if the topic is subscribed by myself, fire 'message' event
       if (this.topics.indexOf(topic) !== -1) this.emit('message', topic, data)
-
-      return true
     } else {
-      return false
+      if( typeof(topic) !== 'string' ) throw new Error("topic should be string")
+      if( typeof(data) !== 'string' && typeof(data) !== 'object' ) throw new Error("data should be string or object")
     }
   }
 
@@ -194,13 +194,12 @@ class SiRuClient extends EventEmitter {
    * subscribe to topic
    * @param {string} topic
    */
-  subscribe(topic: string): boolean {
+  subscribe(topic: string): void {
     if(typeof(topic) === 'string') {
       this.topics.push(topic)
       this.topics = _.uniq(this.topics)
-      return true
     } else {
-      return false
+      throw new Error("topic should be string")
     }
   }
 
@@ -209,7 +208,11 @@ class SiRuClient extends EventEmitter {
    * @param {string} topic
    */
   unsubscribe(topic: string): void {
-    this.topics = this.topics.filter(_topic => { return topic !== _topic })
+    if(typeof(topic) === 'string') {
+      this.topics = this.topics.filter(_topic => { return topic !== _topic })
+    } else {
+      throw new Error("topic should be string")
+    }
   }
 
   /**
