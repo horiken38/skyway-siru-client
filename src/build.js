@@ -1,5 +1,7 @@
+//@flow
+
 /* entry point */
 
-const SiRuClient = require('./libs/SiRuClient')
+import SiRuClient from './libs/SiRuClient'
 
 window.SiRuClient = SiRuClient;

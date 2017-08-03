@@ -11,6 +11,8 @@ switch(process.env.NODE_ENV) {
     break;
 }
 
+const JS_INCLUDES = path.join(__dirname, "src")
+
 module.exports = {
   entry: _entry,
   devtool: "source-map",
@@ -21,20 +23,21 @@ module.exports = {
   },
   module: {
     rules: [
-    ],
-    loaders: [
-      { test: /\.json$/, loader: 'json' },
       {
-        test: /\.js$/,
+        test : /\.js$/,
+        include: JS_INCLUDES,
         exclude: /node_modules/,
-        use: [{
-          loader: 'babel-loader',
-          options: {
-            presets: ['es2015']
+        use: [
+          {
+            loader: 'babel-loader',
+            options: {
+              presets: ['es2015', 'flow'],
+            },
           }
-        }],
+        ],
       },
-    ]
+      { test: /\.json$/, loader: 'json' }
+    ],
   },
   resolve: {
     extensions: ['.js', '.json']
@@ -46,3 +49,4 @@ module.exports = {
 }
 
 // npm --save-dev install babel-core babel-loader babel-polyfill babel-preset-es2015 babel-preset-react jest json-loader nock react react-dom webpack
+//

@@ -1,16 +1,18 @@
 // @flow
 
-import util          from './util'
 import _             from 'underscore'
-
-const EventEmitter  = require('events').EventEmitter
-import DeviceManager from './DeviceManager'
 import Rx            from 'rx'
-import Response      from './response'
-
 import Enum          from 'enum'
 
 import SkyWay        from '../assets/skyway.js'
+
+import util          from './util'
+import DeviceManager from './DeviceManager'
+import Response      from './response'
+
+const EventEmitter  = require('events').EventEmitter
+
+
 
 const STATES = new Enum([
     'INIT',
@@ -44,6 +46,7 @@ class SiRuClient extends EventEmitter {
    */
   constructor(roomName: string, options: Object) {
     super();
+
 
     // validate arguments
     try {
