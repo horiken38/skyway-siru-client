@@ -7,7 +7,7 @@ describe('check constructor', () => {
     options = Object.assign({}, {
       status: 200,
       method: "get",
-      transaction_id: "hogehoge",
+      transaction_id: 12345,
       text: "hoge"
     })
   })
@@ -30,8 +30,8 @@ describe('check constructor', () => {
     expect(() => new Response(options)).toThrow()
   })
 
-  test('transaction_id is not string', () => {
-    options = Object.assign({}, options, {transaction_id: 80})
+  test('transaction_id is not number', () => {
+    options = Object.assign({}, options, {transaction_id: "hoge"})
     expect(() => new Response(options)).toThrow()
   })
 
@@ -47,7 +47,7 @@ describe('check text()', () => {
     let response = new Response({
       status: 200,
       method: 'get',
-      transaction_id: 'hoge',
+      transaction_id: 123,
       text: 'hello'
     })
 
@@ -60,7 +60,7 @@ describe('check json()', () => {
     const response = new Response({
       status: 200,
       method: 'get',
-      transaction_id: 'hoge',
+      transaction_id: 123,
       text: JSON.stringify({text: 'hello'})
     })
 
@@ -71,7 +71,7 @@ describe('check json()', () => {
     const response = new Response({
       status: 200,
       method: 'get',
-      transaction_id: 'hoge',
+      transaction_id: 123,
       text: 'non json string'
     })
 

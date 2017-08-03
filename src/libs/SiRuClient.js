@@ -3,7 +3,7 @@
 import util          from './util'
 import _             from 'underscore'
 
-import EventEmitter  from 'events'
+const EventEmitter  = require('events').EventEmitter
 import DeviceManager from './DeviceManager'
 import Rx            from 'rx'
 import Response      from './response'
@@ -32,6 +32,7 @@ class SiRuClient extends EventEmitter {
   options:     Object
   myid:        string
   state:       string
+  deviceManager: Object
 
   /**
    * constructor
@@ -59,6 +60,7 @@ class SiRuClient extends EventEmitter {
     this.topics = []
     this.skyway = undefined
     this.chunks = {}
+    this.deviceManager = new DeviceManager()
 
 
     // override this.options
@@ -92,8 +94,8 @@ class SiRuClient extends EventEmitter {
         this._setState(STATES.USER_LIST_OBTAINED.key)
 
         this._setRoomHandlers()
-        this._connectToDevices(userList)
 
+        this._connectToDevices(userList)
         return this._next()
       }).then(() => {
         this._setState(STATES.STARTED.key)
@@ -109,9 +111,7 @@ class SiRuClient extends EventEmitter {
    * @param {object} options.query  - default is `{}`
    * @param {string} options.body   - default is `null`
    */
-  fetch(uuid_path: string, {method, query, body}: {
-    method: string, query: Object, body: ?string
-  }): Promise<any> {
+  fetch(uuid_path: string, options:?Object): Promise<any> {
     return new Promise((resolv, reject) => {
       const arr = uuid_path.split("/")
       if(arr.length < 2) {
@@ -120,7 +120,7 @@ class SiRuClient extends EventEmitter {
       }
 
       const uuid = arr[0]
-      const conn = DeviceManager.getDataChannelConnection(uuid)
+      const conn = this.deviceManager.getDataChannelConnection(uuid)
       if(!conn) reject(new Error(`no connection found for ${uuid}`))
 
       if(uuid && conn) {
@@ -128,24 +128,28 @@ class SiRuClient extends EventEmitter {
         const path           = "/" + arr.slice(1).join("/")
         let resolved = false
 
-        method         = method || 'GET'
-        query          = query || {}
-        body           = body || null
+        const _default = { uuid, conn, transaction_id, path, method: 'GET', query: {}, body: null }
 
-        this._sendRequest({uuid, conn, transaction_id, method, path, query, body})
+        const requestObj = Object.assign({}, _default, options)
+
 
         const __listener =  (id, res) => {
           if(id === transaction_id) {
             this.removeListener('__fetchResponse', __listener)
+
             resolved = true
             resolv(res)
           }
         }
-        this.on('__fetchResponse', __listener)
+        this.addListener('__fetchResponse', __listener)
+
+        this._sendRequest(requestObj)
 
         setTimeout( ev => {
           if(!resolved) {
+            console.log('timeout')
             this.removeListener('__fetchResponse', __listener)
+
             reject(new Error(`fetch timeout for ${transaction_id}`))
           }
         }, util.TIMEOUT)
@@ -161,29 +165,40 @@ class SiRuClient extends EventEmitter {
    * @param {string} topic
    * @param {string|object} data
    */
-  publish(topic: string, data: string|Object): void {
-    const _data = {
-      topic,
-      payload: data
+  publish(topic: string, data: string|Object): boolean {
+    if(typeof(topic) === 'string' && (typeof(data) === 'string' || typeof(data) === 'object')) {
+      const _data = {
+        topic,
+        payload: data
+      }
+
+      // send serialized message to all connecting peer.
+      const _serialized = JSON.stringify(_data)
+      this.deviceManager.devices.forEach( device => {
+        device.connection.send(_serialized)
+      })
+
+      // if the topic is subscribed by myself, fire 'message' event
+      if (this.topics.indexOf(topic) !== -1) this.emit('message', topic, data)
+
+      return true
+    } else {
+      return false
     }
-
-    // send serialized message to all connecting peer.
-    const _serialized = JSON.stringify(_data)
-    DeviceManager.devices.forEach( device => {
-      device.connection.send(_serialized)
-    })
-
-    // if the topic is subscribed by myself, fire 'message' event
-    if (this.topics.indexOf(topic) !== -1) this.emit('message', topic, data)
   }
 
   /**
    * subscribe to topic
    * @param {string} topic
    */
-  subscribe(topic: string): void {
-    this.topics.push(topic)
-    this.topics = _.uniq(this.topics)
+  subscribe(topic: string): boolean {
+    if(typeof(topic) === 'string') {
+      this.topics.push(topic)
+      this.topics = _.uniq(this.topics)
+      return true
+    } else {
+      return false
+    }
   }
 
   /**
@@ -201,28 +216,26 @@ class SiRuClient extends EventEmitter {
    */
   requestStreaming(uuid: string): Promise<any>{
     return new Promise((resolv, reject) => {
-      const conn = DeviceManager.getDataChannelConnection(uuid)
+      const conn = this.deviceManager.getDataChannelConnection(uuid)
 
       if(conn) {
         let resolved = false
-        conn.send(`SSG:stream/start,${this.myid}`)
 
         const __listener = call => {
-          const __uuid = DeviceManager.getUUID(call.remoteId)
+          const __uuid = this.deviceManager.getUUID(call.remoteId)
 
           if(__uuid !== uuid) return
 
-          call.answer()
           call.on('stream', stream => {
             resolved = true
-            DeviceManager.setCallObject(uuid, call)
+            this.deviceManager.setCallObject(uuid, call)
             this.emit('stream', stream, uuid)
             resolv(stream)
           })
           call.on('error', err => {
             this.emit('stream:error', err, uuid)
             this.skyway.removeListener('call', __listener)
-            DeviceManager.unsetCallObject(uuid)
+            this.deviceManager.unsetCallObject(uuid)
 
             if(!resolved) {
               resolved = true
@@ -232,7 +245,7 @@ class SiRuClient extends EventEmitter {
           call.on('close', () => {
             this.emit('stream:closed', uuid)
             this.skyway.removeListener('call', __listener)
-            DeviceManager.unsetCallObject(uuid)
+            this.deviceManager.unsetCallObject(uuid)
 
             if(!resolved) {
               // received close event when not received 'stream' event, we consider it as error
@@ -240,13 +253,16 @@ class SiRuClient extends EventEmitter {
               reject(new Error(`stream closed for ${uuid}`))
             }
           })
+
+          call.answer()
         }
         this.skyway.on('call',  __listener)
+        conn.send(`SSG:stream/start,${this.myid}`)
 
         setTimeout( ev => {
           if(!resolved) {
             this.skyway.removeListener('call', __listener)
-            DeviceManager.unsetCallObject(uuid)
+            this.deviceManager.unsetCallObject(uuid)
             resolved = true
             reject(new Error('timeout'))
           }
@@ -264,31 +280,31 @@ class SiRuClient extends EventEmitter {
    */
   stopStreaming(uuid: string): Promise<any> {
     return new Promise((resolv, reject) => {
-      const conn = DeviceManager.getDataChannelConnection(uuid)
+      const conn = this.deviceManager.getDataChannelConnection(uuid)
       if(!conn) {
         reject(new Error(`stopStreaming - cannot find connection for ${uuid}`))
         return
       }
       conn.send("SSG:stream/stop")
 
-      const call = DeviceManager.getCallObject(uuid)
+      const call = this.deviceManager.getCallObject(uuid)
       if(!call) {
         reject(new Error(`stopStreaming - cannot find call object for ${uuid}`))
         return
       }
 
-      call.close()
 
       let resolved = false
       call.on('close', () => {
         resolved = true
-        DeviceManager.unsetCallObject(uuid)
+        this.deviceManager.unsetCallObject(uuid)
         resolv()
       })
+      call.close()
 
       setTimeout(ev => {
         if(!resolved) {
-          DeviceManager.unsetCallObject(uuid)
+          this.deviceManager.unsetCallObject(uuid)
           reject(new Error("timeout for stopStreaming"))
         }
       }, util.TIMEOUT)
@@ -307,7 +323,7 @@ class SiRuClient extends EventEmitter {
       // finished establishing SkyWay connection
       this.skyway.on('open', id => {
         this.myid = id;
-        DeviceManager.setPeerID(this.myid)
+        this.deviceManager.setPeerID(this.myid)
 
         resolv();
       })
@@ -375,7 +391,7 @@ class SiRuClient extends EventEmitter {
   _createDCConnection(targetId: string): Promise<any> {
     return new Promise((resolv, reject) => {
       // check connection is already existing. If exists, we do nothing.
-      if( DeviceManager.getUUID(targetId) ) {
+      if( this.deviceManager.getUUID(targetId) ) {
         reject(new Error(`you connection for ${targetId} already exists`))
         return;
       }
@@ -394,18 +410,22 @@ class SiRuClient extends EventEmitter {
             else timer.unsubscribe()
           })
 
+        conn.on('data', data => {
+          this._handleDCData(data.toString())
+        })
 
-        DeviceManager.register(conn)
+
+        this.deviceManager.register(conn)
           .then(device => {
-            conn.on('data', data => { this._handleDCData(data) })
             conn.on('close', () => {
-              DeviceManager.unregister(device.uuid)
+              this.deviceManager.unregister(device.uuid)
               this.emit('datachannel:closed', device.uuid)
               timer.unsubscribe()
             })
 
+
             this.emit('meta', device.profile)
-            resolv()
+            resolv(device.profile)
           })
           .catch(err => reject(err.message))
       })
@@ -422,9 +442,9 @@ class SiRuClient extends EventEmitter {
    * @private
    */
   _handleDCData(data: string): void {
+    if(data.indexOf('SSG:') === 0) return // ignore control data
     try {
       const _data   = JSON.parse(data)  // _data = {topic, payload}: {topic:string, payload: object}
-      // fixme: when control data received (beginning with SSG:), it will throw error
       const topic   = _data.topic
       const message = _data.payload
 
@@ -432,7 +452,7 @@ class SiRuClient extends EventEmitter {
         // published message
         // In this case message is arbitrary
         this.emit('message', topic, message)
-      } else if(DeviceManager.exist(topic)) {
+      } else if(this.deviceManager.exist(topic)) {
         // when message is request and response type
         // In this case, message must be
         // {status, transaction_id, method, chunked, chunk_len, idx, body, chunk}
@@ -478,6 +498,7 @@ class SiRuClient extends EventEmitter {
 
             this.emit('__fetchResponse', transaction_id, res)
 
+
             // remove processed object
             delete this.chunks[transaction_id]
           }
@@ -508,6 +529,7 @@ class SiRuClient extends EventEmitter {
     query: Object,
     body: ?string|Object
   }): void {
+
     const _data = {
       topic: uuid,
       payload: {
@@ -561,11 +583,11 @@ class SiRuClient extends EventEmitter {
    */
   _handleRoomLeave(mesg: Object): void {
     // obtain connection object for remove
-    const uuid = DeviceManager.getUUID( mesg.src )
+    const uuid = this.deviceManager.getUUID( mesg.src )
     if(uuid) {
-      const connection = DeviceManager.getDataChannelConnection( uuid )
+      const connection = this.deviceManager.getDataChannelConnection( uuid )
       if(connection) connection.close()
-      DeviceManager.unregister(uuid)
+      this.deviceManager.unregister(uuid)
     }
   }
 
@@ -577,14 +599,12 @@ class SiRuClient extends EventEmitter {
   _connectToDevices(userList: Array<string>): void {
     // currently, room api has a bug that there are duplicated peerids
     // in user list. So, we'll eliminate it
-    const _userList = _.uniq(userList)
 
     // this is only called when this id join room.
     // in this case, we will connect to arm base devices
-    _userList.filter( id => id.indexOf("SSG_") === 0)
-      .forEach( id => {
-        this._createDCConnection(id)
-      })
+    _.uniq(userList)
+      .filter( id => id.indexOf("SSG_") === 0)
+      .forEach( id => this._createDCConnection(id))
   }
 
   /**
@@ -659,7 +679,6 @@ class SiRuClient extends EventEmitter {
    * @private
    */
   _setState(state: string): void {
-    console.log(state)
     this.state = state
     this.emit('state:change', this.state)
   }

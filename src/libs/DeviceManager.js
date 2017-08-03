@@ -233,4 +233,4 @@ class DeviceManager {
   }
 }
 
-module.exports = new DeviceManager()
+module.exports = DeviceManager

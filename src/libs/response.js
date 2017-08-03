@@ -3,20 +3,20 @@
 class Response {
   status: number
   method: string
-  transaction_id: string
+  transaction_id: number
   _text: string
 
   /*
    * @params {number} status - 200,404 etc.
    * @params {string} method - "get", "post" etc
-   * @params {string} transaction_id
+   * @params {number} transaction_id
    * @params {string} text
    */
   constructor( {status, method, transaction_id, text}:
-      {status: number, method: string, transaction_id: string, text: string}) {
+      {status: number, method: string, transaction_id: number, text: string}) {
     if( typeof(status) !== 'number' ||
         typeof(method) !== 'string' ||
-        typeof(transaction_id) !== 'string' ||
+        typeof(transaction_id) !== 'number' ||
         typeof(text) !== 'string' ) throw new Error('invalid options')
     this.status = status
     this.method = method
