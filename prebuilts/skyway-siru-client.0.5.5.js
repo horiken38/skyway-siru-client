@@ -32227,4 +32227,4 @@ function isUndefined(arg) {
 
 /***/ })
 /******/ ]);
-//# sourceMappingURL=SiRuClient.js.map
+//# sourceMappingURL=skyway-siru-client.js.map
