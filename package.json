@@ -2,7 +2,7 @@
   "name": "skyway-siru-client",
   "version": "0.0.4",
   "description": "SkyWay IoT sdk Room Utility for client",
-  "main": "src/index.js",
+  "main": "compiled/index.js",
   "directories": {
     "test": "test"
   },
@@ -15,6 +15,7 @@
     "build:production": "NODE_ENV=production webpack -p",
     "flow": "flow",
     "flow:watch": "flow-watch",
+    "compile": "babel src --out-dir compiled",
     "write:SiRuClient": "jsdoc2md -c jsdoc.conf.json src/libs/SiRuClient.js > docs/SiRuClient.md",
     "write:Response": "jsdoc2md -c jsdoc.conf.json src/libs/response.js > docs/response.md"
   },
