@@ -1,40 +1,38 @@
-const webpack = require('webpack');
+const path    = require('path')
 
-const path = require('path')
-let _entry
+const JS_INCLUDES = path.join(__dirname, "src")
 
-switch(process.env.NODE_ENV) {
-  default:
-    _entry = {
-      "SiRuClient": "./src/build"
-    };
-    break;
-}
 
 module.exports = {
-  entry: _entry,
+  entry: {
+    "skyway-siru-client": "./src/index"
+  },
   devtool: "source-map",
   output: {
     path: path.join(__dirname, "dist"),
     publicPath: '/dist/',
-    filename: process.env.NODE_ENV === "production" ? "[name].min.js" : "[name].js"
+    filename: process.env.NODE_ENV === "production" ? "[name].min.js" : "[name].js",
+    library: 'SiRuClient',
+    libraryTarget: 'umd',
+    libraryExport: 'default'
   },
   module: {
     rules: [
-    ],
-    loaders: [
-      { test: /\.json$/, loader: 'json' },
       {
-        test: /\.js$/,
+        test : /\.js$/,
+        include: JS_INCLUDES,
         exclude: /node_modules/,
-        use: [{
-          loader: 'babel-loader',
-          options: {
-            presets: ['es2015']
+        use: [
+          {
+            loader: 'babel-loader',
+            options: {
+              presets: ['es2015', 'flow'],
+            },
           }
-        }],
+        ],
       },
-    ]
+      { test: /\.json$/, loader: 'json' }
+    ],
   },
   resolve: {
     extensions: ['.js', '.json']
@@ -42,7 +40,14 @@ module.exports = {
   plugins: [
   ],
   node: {
+  },
+  devServer: {
+    contentBase: path.join(__dirname, "examples"),
+    compress: true,
+    inline: true,
+    port: 9000
   }
 }
 
 // npm --save-dev install babel-core babel-loader babel-polyfill babel-preset-es2015 babel-preset-react jest json-loader nock react react-dom webpack
+//

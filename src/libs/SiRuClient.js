@@ -1,40 +1,69 @@
-const EventEmitter  = require('events').EventEmitter
-const DeviceManager = require('./DeviceManager')
-const _             = require('underscore')
-const Rx            = require('rx')
-const util          = require('./util')
-const Response      = require('./response')
+// @flow
 
-const SkyWay        = require('../assets/skyway.js')
+import _             from 'underscore'
+import Rx            from 'rx'
+import Enum          from 'enum'
+
+import SkyWay        from '../assets/skyway.js'
+
+import util          from './util'
+import DeviceManager from './DeviceManager'
+import Response      from './response'
+
+const EventEmitter  = require('events').EventEmitter
+
+
+
+const STATES = new Enum([
+    'INIT',
+    'SKYWAY_CONNECTED',
+    'ROOM_JOINED',
+    'USER_LIST_OBTAINED',
+    'STARTED'
+])
 
 /**
- * @extends EventEmitter
+ * Client class of SkyWay IoT Room Utility
  *
+ * @class
+ *
+ * @param {string} roomName - The name for PubSub Message Bus.
+ * @param {Object} options - option argument of skyway constructor. For more detail, please check https://nttcom.github.io/skyway/en/docs/#JS.
+ * @param {string} options.key - SkyWay API key. This is only one mandatory parameter in options.
+ * @constructs SiRuClient
+ *
+ * @extends EventEmitter
  */
 class SiRuClient extends EventEmitter {
-  /**
-   * constructor
-   *
-   * @param {string} roomName - The name for PubSub Message Bus.
-   * @param {Object} options - Optional arguments for the PubSub Bus.
-   * @param {string} options.key - SkyWay API key.
-   * @param {string} [options.origin] - The domain bounder for API key. Default is 'https:/localhost'
-   */
-  constructor(roomName, options) {
+  roomName:    string
+  topics:      Array<string>
+  skyway:      SkyWay
+  chunks:      Object
+  options:     Object
+  myid:        string
+  state:       string
+  deviceManager: Object
+
+  constructor(roomName: string, options: Object) {
     super();
 
     // validate arguments
-    if(!this._checkRoomName(roomName)) return;
-    if(!this._checkOptions(options)) return;
+    try {
+      this._checkRoomName(roomName)
+      this._checkOptions(options)
+    } catch(err) {
+      // validation failed
+      throw(err)
+    }
 
     // set properties
+    this.state = STATES.INIT.key
     this.roomName = roomName;
-    this.connections = []
     this.topics = []
     this.skyway = undefined
     this.chunks = {}
+    this.deviceManager = new DeviceManager()
 
-    this.transactions = []
 
     // override this.options
     this.options = Object.assign({}, {
@@ -44,22 +73,55 @@ class SiRuClient extends EventEmitter {
 
     // start establishing SkyWay connecction, then start connecting message hub
     // when finished, we'll emit 'connect' message.
-    this._startSkyWayConnection()
-      .then( () => this._connectMessageHub() )
-      .then( () => { this.emit("connect") })
-      .catch(err => {throw err})
+
+    this._start()
+  }
+
+  /**
+   * start processing
+   *
+   * @private
+   *
+   */
+  _start(): void {
+    this._createSkyWayConnection()
+      .then( () => {
+        this._setState(STATES.SKYWAY_CONNECTED.key)
+
+        return this._sendRoomJoinRequest()
+      })
+      .then( () => {
+        this._setState(STATES.ROOM_JOINED.key)
+
+        return this._sendUserListRequest()
+      }).then((userList) => {
+        this._setState(STATES.USER_LIST_OBTAINED.key)
+
+        this._setRoomHandlers()
+
+        this._connectToDevices(userList)
+        return this._next()
+      }).then(() => {
+        this._setState(STATES.STARTED.key)
+        this.emit("connect")
+      }).catch(err => {throw err})
   }
 
 
   /**
    *
-   * @param {string} uuid_path - device-uuid + '/' etc.
+   * @param {string} uuid_path - target-device-uuid + path which begin with '/'. (e.g. "target-uuid/echo/hello" )
    * @param {object} options
    * @param {string} options.method - default is `GET`
    * @param {object} options.query  - default is `{}`
    * @param {string} options.body   - default is `null`
+   *
+   * @returns {Promise.<Response>} Response object
+   *
+   * @method SiRuClient#fetch
+   *
    */
-  fetch(uuid_path, options) {
+  fetch(uuid_path: string, options:?Object): Promise<any> {
     return new Promise((resolv, reject) => {
       const arr = uuid_path.split("/")
       if(arr.length < 2) {
@@ -68,147 +130,238 @@ class SiRuClient extends EventEmitter {
       }
 
       const uuid = arr[0]
-      const conn = DeviceManager.getDataChannelConnection(uuid)
+      const conn = this.deviceManager.getDataChannelConnection(uuid)
       if(!conn) reject(new Error(`no connection found for ${uuid}`))
 
       if(uuid && conn) {
         const transaction_id = Date.now()
-        const method         = options.method || 'GET'
         const path           = "/" + arr.slice(1).join("/")
-        const query          = options.query || {}
-        const body           = options.body || null
+        let resolved = false
 
-        this.transactions.push({uuid, conn, transaction_id, resolv, reject})
+        const _default = { uuid, conn, transaction_id, path, method: 'GET', query: {}, body: null }
 
-        this.sendRequest(uuid, conn, transaction_id, method, path, query, body)
+        const requestObj = Object.assign({}, _default, options)
+
+
+        const __listener =  (id, res) => {
+          if(id === transaction_id) {
+            this.removeListener('__fetchResponse', __listener)
+
+            resolved = true
+            resolv(res)
+          }
+        }
+        this.addListener('__fetchResponse', __listener)
+
+        this._sendRequest(requestObj)
+
+        setTimeout( ev => {
+          if(!resolved) {
+            console.log('timeout')
+            this.removeListener('__fetchResponse', __listener)
+
+            reject(new Error(`fetch timeout for ${transaction_id}`))
+          }
+        }, util.TIMEOUT)
       }
     })
   }
 
+
   /**
+   * publish message to all connecting peer.
+   * when subscribing by myself, fire 'message' event internally as well.
    *
-   * @param {string} uuid
-   * @param {string} conn
-   * @param {string} transaction_id
-   * @param {string} method
-   * @param {string} path
-   * @param {object} query
-   * @param {string|object} body
-   */
-  sendRequest(uuid, conn, transaction_id, method, path, query, body){
-    const _data = {
-      topic: uuid,
-      payload: {
-        method,
-        path,
-        query,
-        body,
-        transaction_id
-      }
-    }
-
-    conn.send(JSON.stringify(_data))
-  }
-
-
-  /**
-   * publish data for topic
-   * send formatted message to all connecting peer. And if I am subscribing this topic,
-   * fire 'message' event.
    * @param {string} topic
    * @param {string|object} data
+   * @method SiRuClient#publish
    */
-  publish(topic, data) {
-    const _data = {
-      topic,
-      payload: data
+  publish(topic: string, data: string|Object): void {
+    if(typeof(topic) === 'string' && (typeof(data) === 'string' || typeof(data) === 'object')) {
+      const _data = {
+        topic,
+        payload: data
+      }
+
+      // send serialized message to all connecting peer.
+      const _serialized = JSON.stringify(_data)
+      this.deviceManager.devices.forEach( device => {
+        device.connection.send(_serialized)
+      })
+
+      // if the topic is subscribed by myself, fire 'message' event
+      if (this.topics.indexOf(topic) !== -1) this.emit('message', topic, data)
+    } else {
+      if( typeof(topic) !== 'string' ) throw new Error("topic should be string")
+      if( typeof(data) !== 'string' && typeof(data) !== 'object' ) throw new Error("data should be string or object")
     }
-
-    // send serialized message to all connecting peer.
-    const _serialized = JSON.stringify(_data)
-    this.connections.forEach(conn => {
-      conn.send(_serialized)
-    })
-
-    // if the topic is subscribed by myself, fire 'message' event
-    if (this.topics.indexOf(topic) !== -1) this.emit('message', topic, data)
   }
 
   /**
    * subscribe to topic
    * @param {string} topic
+   * @method SiRuClient#subscribe
    */
-  subscribe(topic) {
-    this.topics.push(topic)
-    this.topics = _.uniq(this.topics)
+  subscribe(topic: string): void {
+    if(typeof(topic) === 'string') {
+      this.topics.push(topic)
+      this.topics = _.uniq(this.topics)
+    } else {
+      throw new Error("topic should be string")
+    }
   }
 
   /**
    * unsubscribe topic
    * @param {string} topic
+   * @method SiRuClient#unsubscribe
    */
-  unsubscribe(topic) {
-    this.topics = this.topics.filter(_topic => { return topic !== _topic })
+  unsubscribe(topic: string): void {
+    if(typeof(topic) === 'string') {
+      this.topics = this.topics.filter(_topic => { return topic !== _topic })
+    } else {
+      throw new Error("topic should be string")
+    }
   }
 
   /**
    * request streaming to SSG
    *
-   * @param {*} uuid
+   * @param {string} uuid
+   * @returns {Promise<Object>} returns stream object
+   * @method SiRuClient#requestStreaming
    */
-  requestStreaming(uuid){
-    const conn = DeviceManager.getDataChannelConnection(uuid)
-    const peerid = DeviceManager.getPeerid(uuid)
+  requestStreaming(uuid: string): Promise<Object>{
+    return new Promise((resolv, reject) => {
+      const conn = this.deviceManager.getDataChannelConnection(uuid)
 
-    if(!conn || !peerid) reject(new Error(`cannot get connection or peerid`))
+      if(conn) {
+        let resolved = false
 
-    conn.send(`SSG:stream/start,${this.myid}`)
-  }
+        const __listener = call => {
+          const __uuid = this.deviceManager.getUUID(call.remoteId)
 
-  stopStreaming(uuid){
-    const conn = DeviceManager.getDataChannelConnection(uuid)
-    conn.send("SSG:stream/stop")
+          if(__uuid !== uuid) return
+
+          call.on('stream', stream => {
+            resolved = true
+            this.deviceManager.setCallObject(uuid, call)
+            this.emit('stream', stream, uuid)
+            resolv(stream)
+          })
+          call.on('error', err => {
+            this.emit('stream:error', err, uuid)
+            this.skyway.removeListener('call', __listener)
+            this.deviceManager.unsetCallObject(uuid)
+
+            if(!resolved) {
+              resolved = true
+              reject(err)
+            }
+          })
+          call.on('close', () => {
+            this.emit('stream:closed', uuid)
+            this.skyway.removeListener('call', __listener)
+            this.deviceManager.unsetCallObject(uuid)
+
+            if(!resolved) {
+              // received close event when not received 'stream' event, we consider it as error
+              resolved = true
+              reject(new Error(`stream closed for ${uuid}`))
+            }
+          })
+
+          call.answer()
+        }
+        this.skyway.on('call',  __listener)
+        conn.send(`SSG:stream/start,${this.myid}`)
+
+        setTimeout( ev => {
+          if(!resolved) {
+            this.skyway.removeListener('call', __listener)
+            this.deviceManager.unsetCallObject(uuid)
+            resolved = true
+            reject(new Error('timeout'))
+          }
+        }, util.TIMEOUT)
+      } else {
+        reject(new Error(`cannot get connection for ${uuid}`))
+      }
+    })
   }
 
   /**
-   * Start establishing SkyWay connection
+   * request stop streaming to SSG
+   *
+   * @param {string} uuid
+   * @returns {Promise<void>}
+   * @method SiRuClient#stopStreaming
+   *
+   */
+  stopStreaming(uuid: string): Promise<void> {
+    return new Promise((resolv, reject) => {
+      const conn = this.deviceManager.getDataChannelConnection(uuid)
+      if(!conn) {
+        reject(new Error(`stopStreaming - cannot find connection for ${uuid}`))
+        return
+      }
+      conn.send("SSG:stream/stop")
+
+      const call = this.deviceManager.getCallObject(uuid)
+      if(!call) {
+        reject(new Error(`stopStreaming - cannot find call object for ${uuid}`))
+        return
+      }
+
+
+      let resolved = false
+      call.on('close', () => {
+        resolved = true
+        this.deviceManager.unsetCallObject(uuid)
+        resolv()
+      })
+      call.close()
+
+      setTimeout(ev => {
+        if(!resolved) {
+          this.deviceManager.unsetCallObject(uuid)
+          reject(new Error("timeout for stopStreaming"))
+        }
+      }, util.TIMEOUT)
+    })
+  }
+
+  /**
+   * create SkyWay connection
    * @private
    */
-  _startSkyWayConnection() {
+  _createSkyWayConnection(): Promise<any> {
     return new Promise((resolv, reject) => {
+      let resolved = false
       this.skyway = new SkyWay(this.options)
 
       // finished establishing SkyWay connection
       this.skyway.on('open', id => {
         this.myid = id;
-        DeviceManager.start(this.myid)
-        this._setDeviceManagerHandler()
-        this._setSkyWayHandler()
+        this.deviceManager.setPeerID(this.myid)
+
         resolv();
-      })
-
-      // when P2P connection established as a callee side
-      // we'll push connection object to Array and set handler for this P2P
-      this.skyway.on('connection', conn => {
-        this.connections.push(conn)
-
-        // setup handler
-        conn.on('data', data => { this._handleP2PData(data) })
-        conn.on('error', err => { } )
-      })
-
-      this.skyway.on('call', call => {
-        call.answer()
-        call.on('stream', stream => {
-          const uuid = DeviceManager.getUUID(call.remoteId)
-          this.emit('stream', stream, uuid)
-        })
       })
 
       // when error happen
       this.skyway.on('error', err => {
-        reject(err)
+        if(!resolved) {
+          resolved = true
+          reject(err)
+        }
       })
+
+      // start timer
+      setTimeout( ev => {
+        if(!resolved) {
+          reject(new Error("timeout - create skyway connection"))
+        }
+      }, util.TIMEOUT)
     })
   }
 
@@ -217,77 +370,122 @@ class SiRuClient extends EventEmitter {
    * We use FullMesh API for virtual Messsage Hub
    * @private
    */
-  _connectMessageHub() {
+  _sendRoomJoinRequest(): Promise<any> {
     return new Promise((resolv, reject) => {
-      const data = {
+      const __REQ      = util.MESSAGE_TYPES.CLIENT.ROOM_JOIN.key
+      const __EXPECTED = util.MESSAGE_TYPES.SERVER.ROOM_USER_JOIN.key
+
+      const __data = {
         roomName: this.roomName,
         roomType: 'mesh'
       }
 
-      // send join room request to SkyWay signaling server
-      this.skyway.socket.send(util.MESSAGE_TYPES.CLIENT.ROOM_JOIN.key, data);
+      let __resolved = false
+      const __socket = this.skyway.socket
+
+      const __listener = (mesg) => {
+        if(mesg.roomName === this.roomName && mesg.src === this.myid) {
+          __resolved = true
+          __socket.removeListener(__EXPECTED, __listener)
+          resolv()
+        }
+      }
+      // when user join message received
+      __socket.on(__EXPECTED, __listener);
 
       // send join room request to SkyWay signaling server
-      this.on('roomJoined', () => {
-        resolv()
-      })
+      __socket.send(__REQ, __data);
+
+      setTimeout(ev => {
+        if(!__resolved) reject(new Error(`cannot join message hub: ${this.roomName}`))
+      }, util.TIMEOUT)
     })
   }
 
   /**
-   * Create SkyWay P2P connection
-   * @param {string} destination - destination peer id
+   * Create SkyWay DataChannel connection to specified peer
+   *
+   * @param {string} targetId - target peer id
    * @private
    */
-  _createP2PConnection(destination) {
-    // check whether connection is already existing.
-    if( this.connections.filter( conn => conn.remoteId === destination).length === 1 ) return;
+  _createDCConnection(targetId: string): Promise<any> {
+    return new Promise((resolv, reject) => {
+      // check connection is already existing. If exists, we do nothing.
+      if( this.deviceManager.getUUID(targetId) ) {
+        reject(new Error(`you connection for ${targetId} already exists`))
+        return;
+      }
 
-    // start DataChannel connection
-    const conn = this.skyway.connect(destination, {serialization: 'none', reliable: true})
-    this.connections.push(conn)
+      // start DataChannel connection
+      const conn = this.skyway.connect(targetId, {serialization: 'none', reliable: true})
 
-    // when connection established.
-    conn.on('open', () => {
-      // start keepalive timer
-      const keepalive_mesg = `SSG:keepalive,${this.myid}`
-      conn.send(keepalive_mesg)
-      const timer = Rx.Observable.interval(util.KEEPALIVETIMER)
-        .subscribe(() => {
-          if(conn) conn.send(keepalive_mesg)
-          else timer.unsubscribe()
+      // when connection established.
+      conn.on('open', () => {
+        // start keepalive timer
+        const keepalive_mesg = `SSG:keepalive,${this.myid}`
+        conn.send(keepalive_mesg)
+        const timer = Rx.Observable.interval(util.KEEPALIVETIMER)
+          .subscribe(() => {
+            if(conn) conn.send(keepalive_mesg)
+            else timer.unsubscribe()
+          })
+
+        conn.on('data', data => {
+          this._handleDCData(data.toString())
         })
 
 
-      DeviceManager.register(conn)
+        this.deviceManager.register(conn)
+          .then(device => {
+            this.emit('device:connected', device.uuid, device.profile)
+            this.emit('meta', device.profile)
+            conn.on('close', () => {
+              this.deviceManager.unregister(device.uuid)
+              this.emit('device:closed', device.uuid)
+              timer.unsubscribe()
+            })
+
+
+            resolv(device.profile)
+          })
+          .catch(err => reject(err.message))
+      })
+
+      // when error happened.
+      conn.on('error', err => reject(err))
     })
-
-    // when data received from peer.
-    conn.on('data', data => { this._handleP2PData(data) })
-
-    // when error happened.
-    conn.on('error', err => {  })
   }
 
   /**
-   * Handle P2P data
+   * Handle DataChannel data
    * If topic is subscribed, fire 'message' event
-   * @param {object} data - Data sent by peer
-   * @param {string} data.topic - The name of topic
-   * @param {string|object} - data.payload - payload data
+   * @param {string} data - DataChannel data (it must be JSON string)
    * @private
    */
-  _handleP2PData(data) {
+  _handleDCData(data: string): void {
+    if(data.indexOf('SSG:') === 0) return // ignore control data
     try {
-      const _data   = JSON.parse(data)
+      const _data   = JSON.parse(data)  // _data = {topic, payload}: {topic:string, payload: object}
       const topic   = _data.topic
       const message = _data.payload
 
       if(this.topics.indexOf(topic) !== -1) {
-        // message with topic
+        // published message
+        // In this case message is arbitrary
         this.emit('message', topic, message)
-      } else if(DeviceManager.exist(topic)) {
+      } else if(this.deviceManager.exist(topic)) {
         // when message is request and response type
+        // In this case, message must be
+        // {status, transaction_id, method, chunked, chunk_len, idx, body, chunk}
+        // : {status: number,
+        //    transaction_id: string,
+        //    method: string,
+        //    chunked: ?boolean,
+        //    chunk_len: ?number,
+        //    idx: ?number,
+        //    body: string
+        //    chunk: string }
+
         const status = message.status
         const transaction_id = message.transaction_id
         const method = message.method
@@ -298,14 +496,7 @@ class SiRuClient extends EventEmitter {
           const text = message.body
           const res = new Response({status, transaction_id, method, text})
 
-          this.transactions
-            .filter(obj => obj.transaction_id === transaction_id)
-            .forEach(obj => {
-              obj.resolv(res)
-            })
-
-          // remove processed object
-          this.transactions = this.transactions.filter( obj => obj.transaction_id !== transaction_id)
+          this.emit('__fetchResponse', transaction_id, res)
         } else {
           // when message is chunked
 
@@ -326,15 +517,11 @@ class SiRuClient extends EventEmitter {
             const text = this.chunks[transaction_id].chunks.join("")
             const res = new Response({status, transaction_id, method, text})
 
-            this.transactions
-              .filter(obj => obj.transaction_id === transaction_id)
-              .forEach(obj => {
-                obj.resolv(res)
-              })
+            this.emit('__fetchResponse', transaction_id, res)
+
 
             // remove processed object
             delete this.chunks[transaction_id]
-            this.transactions = this.transactions.filter( obj => obj.transaction_id !== transaction_id)
           }
         }
       }
@@ -344,54 +531,57 @@ class SiRuClient extends EventEmitter {
   }
 
   /**
-   * Cloean up P2P connection
-   * @param {object} conn - DataConnection object
+   * @param {string} uuid
+   * @param {object} conn
+   * @param {number} transaction_id
+   * @param {string} method
+   * @param {string} path
+   * @param {object} query
+   * @param {string|object} body
+   *
    * @private
    */
-  _cleanupP2P(conn) {
-    conn.close()
-    this.connections = this.connections.filter( _conn => {return conn !== _conn})
+  _sendRequest({ uuid, conn, transaction_id, method, path, query, body} : {
+    uuid: string,
+    conn: Object,
+    transaction_id: number,
+    method: string,
+    path: string,
+    query: Object,
+    body: ?string|Object
+  }): void {
+
+    const _data = {
+      topic: uuid,
+      payload: {
+        method,
+        path,
+        query,
+        body,
+        transaction_id
+      }
+    }
+
+    conn.send(JSON.stringify(_data))
   }
 
+
   /**
-   * setup handler for skyway (for joinRoom)
+   * setup handler for skyway mesh-room features(for joinRoom)
    * @private
    */
-  _setSkyWayHandler() {
-    const socket = this.skyway.socket
+  _setRoomHandlers(): void {
+    const __socket = this.skyway.socket
 
     // when user join message received
-    socket.on(util.MESSAGE_TYPES.SERVER.ROOM_USER_JOIN.key, mesg => {
+    __socket.on(util.MESSAGE_TYPES.SERVER.ROOM_USER_JOIN.key, mesg => {
       if(this.roomName === mesg.roomName) this._handleRoomJoin(mesg)
     });
 
     // when user leave message received
-    socket.on(util.MESSAGE_TYPES.SERVER.ROOM_USER_LEAVE.key, mesg => {
+    __socket.on(util.MESSAGE_TYPES.SERVER.ROOM_USER_LEAVE.key, mesg => {
       if(this.roomName === mesg.roomName) this._handleRoomLeave(mesg)
     });
-
-    // when room data message received
-    socket.on(util.MESSAGE_TYPES.SERVER.ROOM_DATA.key, mesg => {
-      if(this.roomName === mesg.roomName) this._handleRoomData(mesg)
-    });
-
-    // when room log received
-    socket.on(util.MESSAGE_TYPES.SERVER.ROOM_LOGS.key, mesg => {
-      if(this.roomName === mesg.roomName) this._handleRoomLog(mesg.log)
-    });
-
-    // when user list received
-    socket.on(util.MESSAGE_TYPES.SERVER.ROOM_USERS.key, mesg => {
-      if(this.roomName === mesg.roomName) this._handleRoomUsers(mesg.userList)
-    });
-  }
-
-  /**
-   * set DeviceManager handler
-   * @private
-   */
-  _setDeviceManagerHandler() {
-    DeviceManager.on('meta', data => this.emit('meta', data))
   }
 
   /**
@@ -399,15 +589,10 @@ class SiRuClient extends EventEmitter {
    * @param {object} mesg
    * @private
    */
-  _handleRoomJoin(mesg) {
-
-    if(mesg.src === this.myid) {
-      // if user is me, just fire event
-      this.emit('roomJoined', mesg.roomName)
-      this._sendUserListRequest()
-    } else {
-      // if user is not me, create connection
-      this._createP2PConnection(mesg.src)
+  _handleRoomJoin(mesg: Object): void {
+    if(mesg.src !== this.myid) {
+      // when we receive room_join message for other peer, we will make DataChannel connection.
+      this._createDCConnection(mesg.src)
     }
   }
 
@@ -417,29 +602,14 @@ class SiRuClient extends EventEmitter {
    * @param {object} mesg
    * @private
    */
-  _handleRoomLeave(mesg) {
-    // todo: if user is not me, close p2p
+  _handleRoomLeave(mesg: Object): void {
     // obtain connection object for remove
-    const conns = this.connections.filter( _conn => { return mesg.src === _conn.remoteId })
-    conns.forEach( conn => { this._cleanupP2P(conn)})
-  }
-
-  /**
-   * handle room data message
-   * @param {object} mesg
-   * @private
-   */
-  _handleRoomData(mesg) {
-    // not sure, what should be done for this message
-  }
-
-  /**
-   * handle room log
-   * @param {string} log
-   * @private
-   */
-  _handleRoomLog(log) {
-    // not sure, what should be done for this message
+    const uuid = this.deviceManager.getUUID( mesg.src )
+    if(uuid) {
+      const connection = this.deviceManager.getDataChannelConnection( uuid )
+      if(connection) connection.close()
+      this.deviceManager.unregister(uuid)
+    }
   }
 
   /**
@@ -447,30 +617,50 @@ class SiRuClient extends EventEmitter {
    * @param {Array} userList
    * @private
    */
-  _handleRoomUsers(userList) {
-
+  _connectToDevices(userList: Array<string>): void {
     // currently, room api has a bug that there are duplicated peerids
     // in user list. So, we'll eliminate it
-    const _userList = _.uniq(userList)
 
     // this is only called when this id join room.
     // in this case, we will connect to arm base devices
-    _userList.filter( id => id.indexOf("SSG_") === 0)
-      .forEach( id => {
-        this._createP2PConnection(id)
-      })
+    _.uniq(userList)
+      .filter( id => id.indexOf("SSG_") === 0)
+      .forEach( id => this._createDCConnection(id))
   }
 
   /**
    * send request to get user list to signaling server
    * @private
    */
-  _sendUserListRequest() {
-    const data = {
-      roomName: this.roomName,
-      type: 'media'
-    }
-    this.skyway.socket.send(util.MESSAGE_TYPES.CLIENT.ROOM_GET_USERS.key, data)
+  _sendUserListRequest(): Promise<any> {
+    return new Promise((resolv, reject) => {
+      let __resolved = false
+      const __data = {
+        roomName: this.roomName,
+        type: 'media'
+      }
+      const __socket = this.skyway.socket
+      const __REQUEST  = util.MESSAGE_TYPES.CLIENT.ROOM_GET_USERS.key
+      const __EXPECTED = util.MESSAGE_TYPES.SERVER.ROOM_USERS.key
+
+      // when user list received
+      const __listener = mesg => {
+        if(this.roomName === mesg.roomName) {
+          __resolved = true
+          __socket.removeListener(__EXPECTED, __listener)
+          resolv(mesg.userList)
+        }
+      }
+
+      __socket.on(__EXPECTED, __listener)
+
+      __socket.send(__REQUEST, __data)
+
+      setTimeout(ev => {
+        if(!__resolved) reject(new Error("cannot get user_list"))
+        __socket.removeListener(__EXPECTED, __listener)
+      }, util.TIMEOUT)
+    })
   }
 
   /**
@@ -480,10 +670,11 @@ class SiRuClient extends EventEmitter {
    * @param {string} name
    * @private
    */
-  _checkRoomName(name) {
-    if(!name || typeof(name) !== 'string' || !name.match(/^[a-zA-Z0-9-_.=]+$/) ) return false
-
-    return true
+  _checkRoomName(name: string): void {
+    if(!name || typeof(name) !== 'string')
+      throw(new Error("'name' must be specified in String"))
+    if(!name.match(/^[a-zA-Z0-9-_.=]+$/) )
+      throw(new Error("'name' must be set of 'a-zA-Z0-9-_.='"))
   }
 
   /**
@@ -495,12 +686,124 @@ class SiRuClient extends EventEmitter {
    * @param {string} [options.domain]
    * @private
    */
-  _checkOptions(options) {
-    if(!options.key || typeof(options.key) !== 'string') return false
-    if(options.domain && typeof(options.domain) !== 'string') return false
-
-    return true;
+  _checkOptions(options: Object): void {
+    if(!options.key || typeof(options.key) !== 'string')
+      throw(new Error("options.key must be specified in String"))
+    if(options.domain && typeof(options.domain) !== 'string')
+      throw(new Error("options.dommain must be specified in String"))
   }
+
+  /**
+   * set state and emit event
+   *
+   * @param {string} state
+   * @private
+   */
+  _setState(state: string): void {
+    this.state = state
+    this.emit('state:change', this.state)
+  }
+
+  /**
+   */
+  _next(): Promise<any> {
+    return new Promise((resolv, reject) => {
+      resolv()
+    })
+  }
+
+  /**
+   * When connect to room completed, it will fire
+   *
+   * @event SiRuClient#connect
+   */
+
+  /**
+   * When other device connected
+   *
+   * @event SiRuClient#device:connected
+   * @property {string} uuid - uuid of the device
+   * @property {object} profile - profile object of the device
+   *
+   * @example
+   * client.on('device:connected', (uuid, profile) => {
+   *   console.log(uuid)
+   *   // #=> 'sample-uuid'
+   *   console.log(profile)
+   *   // #=> { description: "...",
+   *   //       handle_id: "...",
+   *   //       name: "some device",
+   *   //       ssg_peerid: "SSG_id",
+   *   //       streaming: true,
+   *   //       topics: [ ... ],
+   *   //       uuid: 'sample-uuid'
+   *   //     }
+   * })
+   */
+
+ /**
+  * When other device connected, it will fire 'meta' event as well.
+  *
+  * @event SiRuClient#meta
+  * @property {object} profile
+  */
+
+ /**
+  * When connection closed to other device, it will fire
+  *
+  * @event SiRuClient#device:closed
+  */
+
+
+
+
+  /**
+   * When publish message received, this event will be fired.
+   *
+   * @event SiRuClient#message
+   * @property {string} topic
+   * @property {data} data
+   *
+   * @example
+   * client.on('message', (topic, data) => {
+   *   console.log(topic, data)
+   *   // #=> "metric/cpu 42.2"
+   * })
+   */
+
+  /**
+   * When media stream received from peer
+   *
+   * @event SiRuClient#stream
+   * @property {object} stream - stream object
+   * @property {string} uuid - uuid of peer
+   *
+   * @example
+   * client.on('stream', stream => {
+   *   video.srcObject = stream
+   * })
+   */
+
+  /**
+   * When error happens while requesting media stream
+   *
+   * @event SiRuClient#stream:error
+   * @property {object} error - Error object
+   * @property {string} uuid - uuid of peer
+   */
+
+  /**
+   * When media stream closed
+   *
+   * @event SiRuClient#stream:closed
+   */
+
+ /**
+  * When state changed until connecting room completed, it will fire
+  *
+  * @event SiRuClient#state:change
+  * @property {string} state - state
+  */
 }
 
-module.exports = SiRuClient;
+export default SiRuClient;

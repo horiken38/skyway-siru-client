@@ -3,90 +3,114 @@
   <head>
     <meta charset="utf-8">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script src="../dist/SiRu-client.js"></script>
+    <script src="dist/skyway-siru-client.js"></script>
   </head>
   <body>
-    <button id="send-echo-req">send echo request</button>
-    <button id="send-take-photo">post take photo</button>
-
-    <div id="devices"></div>
-    <div id="metrics"></div>
     <p>
-    <h3>video uuid: <span id="video-uuid"></span></h3>
-    <video id="janusvideo" autoplay></video>
+      <h1>skyway-siru-client example</h1>
+    </p>
+    <p>
+      <form>
+        <label>apikey</label><input type="text" name="apikey"/></label>
+        <label>room name</label><input type="text" name="room-name"/></label>
+        <button type="submit">start</button>
+      </form>
+    </p>
+    <p>
+      <strong>status : </strong><span id="status"></span>
+    </p>
+    <p>
+      <ul>
+        <li>uuid: <span id="uuid"></span></li>
+        <li>echo message: <span id="echo-mesg"></span></li>
+        <li>published message: <span id="published-mesg"></span></li>
+      </ul>
+    </p>
+    <p>
+      <div><strong>video status: </strong><span id="video-status">idle</span></div>
+      <button id="stop-video">stop video</button><br/>
+      <video id="janusvideo" autoplay></video>
     </p>
 
     <div id="output">
       <ul id="list"></ul>
     </div>
     <script>
-const client = new SiRuClient('testroom', {key: 'db07bbb6-4ee8-4eb7-b0c2-b8b2e5c69ef9', debug: 0})
-let uuid
+      const __STOREKEY__ = 'skyway-siru-client-sample'
 
-client.on('connect', () => {
-  $("#output").html("<b>connection established for skPubSub</b><br><div id='fetch'></div><ul id='list'></ul>")
-  client.subscribe('presence')
+      const conf = JSON.parse(localStorage.getItem(__STOREKEY__))
 
-  $("button#send-echo-req").on("click", ev => {
-    console.log('ok')
-    client.publish('presence', `${client.myid}:hello world.`)
-    const body = 'echo request:' + Date.now()
+      if(conf) {
+        $("input[name=apikey]").val(conf.apikey)
+        $("input[name=room-name]").val(conf.roomName)
+      }
+      $("#stop-video").prop("disabled", true)
 
-    client.fetch( uuid+'/echo/hello123'+Date.now(), {body})
-      .then(res => {
-        return res.text()
+      $("form").on("submit", function(ev) {
+        ev.preventDefault()
+        $(this).find("button").prop("disabled", true)
+
+        const apikey = $(this).find("input[name=apikey]").val()
+          , roomName = $(this).find("input[name=room-name]").val()
+
+        storeLocalStorage({apikey, roomName})
+        start(roomName, apikey)
       })
-      .then(text => {
-        $("#fetch").text(text)
-      })
-  })
 
-  $("button#send-take-photo").on("click", ev => {
-    client.fetch( uuid + "/take/photo", {method: 'POST'})
-      .then(res => res.text())
-      .then(text => $("#fetch").text(text))
-  })
-})
+      const storeLocalStorage = param => {
+        localStorage.setItem(__STOREKEY__, JSON.stringify(param))
+      }
 
-client.on("meta", profile => {
-  $("#devices").html("<h1>" + profile.name + "</h1><p><pre>"+profile.description+"<br>[uuid: "+profile.uuid+"]</pre></p>")
-  uuid = profile.uuid
-  $("#output").append("<div id='" + uuid + "'></div>")
+      const start = (roomName, apikey) => {
+        const client = new SiRuClient(roomName, {key: apikey})
 
-  const html = profile.topics.map(topic => "<h2>" + topic.title + "</h2><div id='" + topic.name.replace("/", "-") + "'></div>").join("")
+        updateStatus('connecting...')
 
-  $("#metrics").html(html)
+        client.on('connect', () => updateStatus('connected'))
+        client.on('meta', profile => {
+          $("#uuid").text(profile.uuid)
+          startStreaming(client, profile)
+          startSubscribe(client, profile.topics)
+          sendEchoRequest(client, profile.uuid)
+        })
+      }
 
-  profile.topics.forEach(topic => client.subscribe(topic.name))
+      const startStreaming = (client, profile) => {
+        $("#video-status").text("requesting")
+        client.requestStreaming(profile.uuid)
+          .then( stream => {
+            $("#video-status").text("started")
+            $("video")[0].srcObject = stream
 
+            $("#stop-video")
+              .prop("disabled", false)
+              .on("click", ev => {
+                client.stopStreaming(profile.uuid)
+                  .then( () => {
+                    console.log('stop video streaming')
+                  })
+              })
+          })
+      }
 
+      const startSubscribe = (client, topics) => {
+        topics.forEach(topic => {
+          client.subscribe(topic.name)
+          client.on('message', (topicName, mesg) => $("#published-mesg").text(topicName + " : " + mesg))
+        })
+      }
 
-  if(profile.streaming.enable) {
-    client.requestStreaming(profile.uuid)
-  }
-})
-client.on("stream", (stream, uuid) => {
-  $("#video-uuid").text(uuid)
+      const sendEchoRequest = (client, uuid) => {
+        $("#echo-message").text("fetching...")
+        client.fetch( uuid + "/echo/hello" )
+          .then(res => res.text())
+          .then(text => $("#echo-mesg").text("receive : " + text))
+          .catch(err => console.warn(err.message))
+      }
 
-  $("#janusvideo").attr("src", window.URL.createObjectURL(stream))
-})
-
-client.on('message', (topic, mesg) => {
-  let _mesg
-
-  try {
-    _mesg = JSON.parse(mesg)
-  } catch(err) {
-    _mesg = mesg
-  }
-  switch(topic) {
-  case 'presence':
-    $("#list").append(`<li>${topic} - ${mesg}</li>`)
-  default:
-    $("#"+topic.replace("/", "-")).html("<pre>" + JSON.stringify(_mesg, null, "  ") + "</pre>")
-    break;
-  }
-})
+      const updateStatus = (mesg) => {
+        $("#status").text(mesg)
+      }
     </script>
   </body>
 </html>

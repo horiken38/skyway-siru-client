@@ -15,10 +15,7 @@ client.on('connect', () => {
   client.subscribe('presence')
 })
 
-client.on('meta', meta => {
-  // obtain uuid of connected device
-  const uuid = meta.uuid // uuid of connected device
-
+client.on('device:connected', (uuid, profile) => {
   // fetch echo api
   client.fetch( uuid+'/echo/hello' )
     .then(res => res.text())
@@ -26,10 +23,7 @@ client.on('meta', meta => {
 
   // display remote camera streaming
   client.requestStreaming(uuid)
-})
-
-client.on("stream", (stream, uuid) => {
-  display(stream)
+    .then(stream => video.srcObject = stream)
 })
 
 client.on('message', (topic, mesg) => {
@@ -47,11 +41,12 @@ $ npm install skyway-siru-client
 
 ## prebuilt
 
-* [link to prebuilt library](https://s3-us-west-1.amazonaws.com/skyway-iot-sdk/dist/SiRuClient.js)
+* https://nttcom.github.io/skyway-siru-client/dist/skyway-siru-client.min.js
 
 ## API reference
 
-* [API reference - SiRu client](https://github.com/nttcom/skyway-iot-sdk/blob/master/docs/apiref/siru_client.md)
+* [SiRuClient](docs/SiRuClient.md)
+* [Response](docs/response.md)
 
 ---
 

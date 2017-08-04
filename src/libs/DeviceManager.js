@@ -1,62 +1,195 @@
+// @flow
+
 /**
  * Device Manager
  *
  *
  */
 
-const EventEmitter = require('events').EventEmitter
+import Device from './Device'
+import util from './util'
 
 const PROFILE_GET  = 'SSG:profile/get'
 const STREAM_START = 'SSG:stream/start'
 const STREAM_STOP  = 'SSG:stream/stop'
+const TIMEOUT = 30000
 
-class DeviceManager extends EventEmitter {
+class DeviceManager {
+  devices: Array<Device>  // store other connecting devices
+  peerid: string  // peerid of this device
+  timeout: number   // timeout value waiting for profile from other device
+
   constructor() {
-    super();
-
-    /**
-     * @property {string} device.uuid
-     * @property {object} device.connection
-     * @property {object} device.profile
-     */
     this.devices = []
+    this.peerid = ""
+    this.timeout = TIMEOUT
   }
 
   /**
-   *
    * @param {string} peerid - my peerid
    */
-  start(peerid) {
+  setPeerID(peerid: string): void {
+    if( typeof(peerid) !== 'string' )
+      throw new Error('setPeerID: peerid should be string')
+
     this.peerid = peerid
   }
 
   /**
+   * This method 1st send request to get profile for peer.
+   * When we receive respond of profile data, beginning from the preamble of 'SSG:',
+   * we will register this device.
    *
    * @param {objcect} conn - datachannel connection object
    */
-  register(conn) {
-    conn.send(PROFILE_GET)
+  register(conn: Object): Promise<any> {
+    return new Promise((resolv, reject) => {
+      let retFlag = false
 
-    conn.on('data', data => {
-      try {
-        if(data.slice(0,4).toString() === "SSG:") {
-          this.handleCtrlData(conn, JSON.parse(data.slice(4).toString()))
-        }
-      } catch(e) {
-        console.warn(e)
+      // listener for profile response
+      const registerListener =  data => {
+        if(data.length <= 4) return
+
+        const head = data.slice(0,4).toString()
+          , body = data.slice(4).toString()
+
+        if(head !== "SSG:" ||  !util.isJSONString(body)) return
+
+        this._register(conn, JSON.parse(body))
+          .then((device) => {
+            conn.removeListener('data', registerListener)
+            retFlag = true
+            resolv(device)
+          }).catch(err => {
+            conn.removeListener('data', registerListener)
+            retFlag = true
+            reject(err)
+          })
+      }
+
+      // set listener
+      conn.on('data', registerListener)
+
+      // send profile request
+      conn.send(PROFILE_GET)
+
+      setTimeout(() => {
+        if(!retFlag) reject( new Error('register: timeout'))
+      }, this.timeout)
+    })
+  }
+
+  /**
+   * unregister device
+   *
+   * @param {string} uuid - uuid of target device
+   *
+   */
+  unregister(uuid: string): Promise<any> {
+    return new Promise((resolv, reject) => {
+      if(!this.exist(uuid)) {
+        reject(new Error(`try to unregister ${uuid}, but it does not exist`))
+      } else {
+        this.devices = this.devices.filter(device => device.uuid !== uuid)
+        resolv()
       }
     })
   }
 
   /**
+   * set call object
+   *
+   * @param {string} uuid
+   * @param {Object} callobj
+   */
+  setCallObject(uuid: string, callobj: Object): boolean {
+    let ret = false
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => {
+        ret = device.setCallObj(callobj)
+      })
+
+    return ret
+  }
+
+  /**
+   * unset call object
    *
    * @param {string} uuid
    */
-  getDataChannelConnection(uuid){
-    let conn;
+  unsetCallObject(uuid: string): boolean {
+    let ret = false
 
-    this.devices.filter(obj => {return obj.uuid === uuid})
-      .forEach(obj => conn = obj.connection )
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => {
+        device.unsetCallObj()
+        ret = true
+      })
+
+    return ret
+  }
+
+  /**
+   * get call object
+   *
+   * @param {string} uuid
+   */
+  getCallObject(uuid: string): Object|null {
+    let ret = null
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => {
+        ret = device.callobj
+      })
+
+    return ret
+  }
+
+  /**
+   *
+   * @param {object} conn - connection object
+   * @param {object} data - data
+   */
+  _register(conn: Object, data: Object): Promise<any> {
+    return new Promise((resolv, reject) => {
+      const uuid      = data.body && data.body.uuid
+        , peerid      = data.body && ( data.body.peerid || data.body.ssg_peerid )
+        , connection  = conn
+        , profile     = data.body
+      let retFlag = false
+
+      try {
+        if(data.type === 'response' && data.target === 'profile' && data.method === 'get') {
+          const device = new Device({uuid, peerid, connection, profile})
+
+          // we will avoid duplicationg uuid. previous one will be removed
+          this.devices = this.devices.filter(_device => _device.uuid !== uuid)
+
+          this.devices.push(device)
+          retFlag = true
+          resolv(device)
+        }
+      } catch(err) {
+        retFlag = true
+        reject(err)
+      }
+
+      setTimeout(() => {
+        if(!retFlag) reject( new Error('_register: timeout'))
+      }, this.timeout)
+    })
+  }
+
+
+
+  /**
+   *
+   * @param {string} uuid
+   */
+  getDataChannelConnection(uuid: string): Object | null{
+    let conn = null;
+
+    this.devices.filter(device => {return device.uuid === uuid})
+      .forEach(device => conn = device.connection )
 
     return conn;
   }
@@ -65,11 +198,11 @@ class DeviceManager extends EventEmitter {
    *
    * @param {string} uuid
    */
-  getPeerid(uuid) {
-    let peerid;
+  getPeerid(uuid: string): string | null {
+    let peerid = null;
 
-    this.devices.filter(obj => obj.uuid === uuid)
-      .forEach(obj => peerid = obj.profile.ssg_peerid)
+    this.devices.filter(device => device.uuid === uuid)
+      .forEach(device => peerid = device.peerid )
 
     return peerid
   }
@@ -78,55 +211,20 @@ class DeviceManager extends EventEmitter {
    *
    * @param {string} peerid
    */
-  getUUID(peerid) {
-    let uuid;
+  getUUID(peerid: string): string | null {
+    let uuid = null;
 
-    this.devices.filter(obj => obj.profile.ssg_peerid === peerid)
-      .forEach(obj => uuid = obj.uuid)
+    this.devices.filter(device => device.peerid === peerid)
+      .forEach(device => uuid = device.uuid)
 
     return uuid
   }
 
 
-
-  /**
-   *
-   * @param {object} conn - connection object
-   * @param {object} data - data
-   */
-  handleCtrlData(conn, data) {
-    if(data.type === 'response'
-      && data.target === 'profile'
-      && data.method === 'get'
-      && typeof(data.body) === 'object'
-      && typeof(data.body.uuid) === 'string') {
-
-      const newDevice = {
-        uuid: data.body.uuid,
-        connection: conn,
-        profile: data.body
-      }
-
-      this.devices.push(newDevice)
-      this.emit('meta', newDevice.profile)
-    }
-  }
-
   /**
    * @param {string} uuid
    */
-  getConnection(uuid) {
-    let ret;
-    this.devices.filter(device => device.uuid === uuid)
-      .forEach(device => ret = device.connection)
-
-    return ret;
-  }
-
-  /**
-   * @param {string} uuid
-   */
-  exist(uuid) {
+  exist(uuid: string): boolean {
     let ret = false
 
     this.devices.filter(device => device.uuid === uuid)
@@ -135,4 +233,4 @@ class DeviceManager extends EventEmitter {
   }
 }
 
-module.exports = new DeviceManager()
+export default DeviceManager
