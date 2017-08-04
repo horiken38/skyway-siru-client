@@ -15,11 +15,11 @@
     * ["connect"](#SiRuClient+event_connect)
     * ["device:connected"](#SiRuClient+device_connected)
     * ["meta"](#SiRuClient+event_meta)
+    * ["device:closed"](#SiRuClient+device_closed)
     * ["message"](#SiRuClient+event_message)
     * ["stream"](#SiRuClient+event_stream)
     * ["stream:error"](#SiRuClient+stream_error)
     * ["stream:closed"](#SiRuClient+stream_closed)
-    * ["device:closed"](#SiRuClient+device_closed)
     * ["state:change"](#SiRuClient+state_change)
 
 <a name="new_SiRuClient_new"></a>
@@ -153,6 +153,12 @@ When other device connected, it will fire 'meta' event as well.
 | --- | --- |
 | profile | <code>object</code> | 
 
+<a name="SiRuClient+device_closed"></a>
+
+### "device:closed"
+When connection closed to other device, it will fire
+
+**Kind**: event emitted by [<code>SiRuClient</code>](#SiRuClient)  
 <a name="SiRuClient+event_message"></a>
 
 ### "message"
@@ -209,12 +215,6 @@ When error happens while requesting media stream
 
 ### "stream:closed"
 When media stream closed
-
-**Kind**: event emitted by [<code>SiRuClient</code>](#SiRuClient)  
-<a name="SiRuClient+device_closed"></a>
-
-### "device:closed"
-When connection closed to other device, it will fire
 
 **Kind**: event emitted by [<code>SiRuClient</code>](#SiRuClient)  
 <a name="SiRuClient+state_change"></a>

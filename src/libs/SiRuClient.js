@@ -748,6 +748,13 @@ class SiRuClient extends EventEmitter {
   * @property {object} profile
   */
 
+ /**
+  * When connection closed to other device, it will fire
+  *
+  * @event SiRuClient#device:closed
+  */
+
+
 
 
   /**
@@ -790,12 +797,6 @@ class SiRuClient extends EventEmitter {
    *
    * @event SiRuClient#stream:closed
    */
-
- /**
-  * When connection closed to other device, it will fire
-  *
-  * @event SiRuClient#device:closed
-  */
 
  /**
   * When state changed until connecting room completed, it will fire
