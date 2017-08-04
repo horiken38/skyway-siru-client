@@ -11,25 +11,26 @@ SkyWay IoT SDK room utility for client
 // Don't forget to config your domain in APIKEY setting in https://skyway.io/ds.
 const client = new SiRuClient('myroom', {key: 'YOUR_API_KEY'})
 
-client.on('connect', () => { /* ... */ })
+client.on('connect', () => {
+  client.on('device:connected', (uuid, profile) => {
+    // fetch echo api
+    client.fetch( uuid+'/echo/hello' )
+      .then(res => res.text())
+      .then(text => console.log(text))
 
-client.on('device:connected', (uuid, profile) => {
-  // fetch echo api
-  client.fetch( uuid+'/echo/hello' )
-    .then(res => res.text())
-    .then(text => console.log(text))
-
-  // request remote camera streaming
-  client.requestStreaming(uuid)
-    .then(stream => video.srcObject = stream)
+    // request remote camera streaming
+    client.requestStreaming(uuid)
+      .then(stream => video.srcObject = stream)
     
-  // subscribe each topic
-  profile.topics.forEach(topic => client.subscribe(topic.name))
+    // subscribe each topic
+    profile.topics.forEach(topic => client.subscribe(topic.name))
+  })
+
+  client.on('message', (topic, mesg) => {
+    console.log(topic, mesg)
+  })
 })
 
-client.on('message', (topic, mesg) => {
-  console.log(topic, mesg)
-})
 ```
 
 # Install
