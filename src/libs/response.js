@@ -1,37 +1,53 @@
 // @flow
 
+/**
+ * Response class for SiRuClient
+ * @class
+ *
+ * @param {Object} params - parameter
+ * @param {number} params.status - 200,404 etc.
+ * @param {string} params.method - "get", "post" etc
+ * @param {number} params.transaction_id - transaction id
+ * @param {string} params.text - response text
+ */
 class Response {
   status: number
   method: string
   transaction_id: number
   _text: string
 
-  /*
-   * @params {number} status - 200,404 etc.
-   * @params {string} method - "get", "post" etc
-   * @params {number} transaction_id
-   * @params {string} text
-   */
-  constructor( {status, method, transaction_id, text}:
-      {status: number, method: string, transaction_id: number, text: string}) {
-    if( typeof(status) !== 'number' ||
-        typeof(method) !== 'string' ||
-        typeof(transaction_id) !== 'number' ||
-        typeof(text) !== 'string' ) throw new Error('invalid options')
-    this.status = status
-    this.method = method
-    this.transaction_id = transaction_id
-    this._text = text
-  }
+  constructor( params: Object ) {
 
-  text():Promise<any> {
+    if( typeof(params.status) !== 'number' ||
+        typeof(params.method) !== 'string' ||
+        typeof(params.transaction_id) !== 'number' ||
+        typeof(params.text) !== 'string' ) throw new Error('invalid options')
+
+    this.status = params.status
+    this.method = params.method
+    this.transaction_id = params.transaction_id
+    this._text = params.text
+  }
+  /**
+   * get response text
+   *
+   * @returns {Promise<string>} response text
+   * @method Response#text
+   */
+  text():Promise<string> {
     return new Promise((resolv, reject) => {
       if(this._text && typeof(this._text) === 'string') resolv(this._text)
       else reject(new Error("can not find text"))
     })
   }
 
-  json():Promise<any> {
+  /**
+   * get response in json object
+   *
+   * @returns {Promise<Object>} response in json object
+   * @method Response#json
+   */
+  json():Promise<Object> {
     return new Promise((resolv, reject) => {
       this.text().then(text => {
         try {

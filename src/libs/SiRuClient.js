@@ -23,8 +23,16 @@ const STATES = new Enum([
 ])
 
 /**
- * @extends EventEmitter
+ * Client class of SkyWay IoT Room Utility
  *
+ * @class
+ *
+ * @param {string} roomName - The name for PubSub Message Bus.
+ * @param {Object} options - option argument of skyway constructor. For more detail, please check https://nttcom.github.io/skyway/en/docs/#JS.
+ * @param {string} options.key - SkyWay API key. This is only one mandatory parameter in options.
+ * @constructs SiRuClient
+ *
+ * @extends EventEmitter
  */
 class SiRuClient extends EventEmitter {
   roomName:    string
@@ -36,17 +44,8 @@ class SiRuClient extends EventEmitter {
   state:       string
   deviceManager: Object
 
-  /**
-   * constructor
-   *
-   * @param {string} roomName - The name for PubSub Message Bus.
-   * @param {Object} options - option argument of skyway constructor
-   * @param {string} options.key - SkyWay API key.
-   * @param {string} [options.origin] - The domain bounder for API key. Default is 'https:/localhost'
-   */
   constructor(roomName: string, options: Object) {
     super();
-
 
     // validate arguments
     try {
@@ -81,6 +80,8 @@ class SiRuClient extends EventEmitter {
   /**
    * start processing
    *
+   * @private
+   *
    */
   _start(): void {
     this._createSkyWayConnection()
@@ -109,11 +110,16 @@ class SiRuClient extends EventEmitter {
 
   /**
    *
-   * @param {string} uuid_path - target-device-uuid + path which begin with '/'.
+   * @param {string} uuid_path - target-device-uuid + path which begin with '/'. (e.g. "target-uuid/echo/hello" )
    * @param {object} options
    * @param {string} options.method - default is `GET`
    * @param {object} options.query  - default is `{}`
    * @param {string} options.body   - default is `null`
+   *
+   * @returns {Promise.<Response>} Response object
+   *
+   * @method SiRuClient#fetch
+   *
    */
   fetch(uuid_path: string, options:?Object): Promise<any> {
     return new Promise((resolv, reject) => {
@@ -163,11 +169,12 @@ class SiRuClient extends EventEmitter {
 
 
   /**
-   * publish data for topic
-   * send formatted message to all connecting peer. And if I am subscribing this topic,
-   * fire 'message' event.
+   * publish message to all connecting peer.
+   * when subscribing by myself, fire 'message' event internally as well.
+   *
    * @param {string} topic
    * @param {string|object} data
+   * @method SiRuClient#publish
    */
   publish(topic: string, data: string|Object): void {
     if(typeof(topic) === 'string' && (typeof(data) === 'string' || typeof(data) === 'object')) {
@@ -193,6 +200,7 @@ class SiRuClient extends EventEmitter {
   /**
    * subscribe to topic
    * @param {string} topic
+   * @method SiRuClient#subscribe
    */
   subscribe(topic: string): void {
     if(typeof(topic) === 'string') {
@@ -206,6 +214,7 @@ class SiRuClient extends EventEmitter {
   /**
    * unsubscribe topic
    * @param {string} topic
+   * @method SiRuClient#unsubscribe
    */
   unsubscribe(topic: string): void {
     if(typeof(topic) === 'string') {
@@ -219,8 +228,10 @@ class SiRuClient extends EventEmitter {
    * request streaming to SSG
    *
    * @param {string} uuid
+   * @returns {Promise<Object>} returns stream object
+   * @method SiRuClient#requestStreaming
    */
-  requestStreaming(uuid: string): Promise<any>{
+  requestStreaming(uuid: string): Promise<Object>{
     return new Promise((resolv, reject) => {
       const conn = this.deviceManager.getDataChannelConnection(uuid)
 
@@ -283,8 +294,11 @@ class SiRuClient extends EventEmitter {
    * request stop streaming to SSG
    *
    * @param {string} uuid
+   * @returns {Promise<void>}
+   * @method SiRuClient#stopStreaming
+   *
    */
-  stopStreaming(uuid: string): Promise<any> {
+  stopStreaming(uuid: string): Promise<void> {
     return new Promise((resolv, reject) => {
       const conn = this.deviceManager.getDataChannelConnection(uuid)
       if(!conn) {
@@ -423,14 +437,15 @@ class SiRuClient extends EventEmitter {
 
         this.deviceManager.register(conn)
           .then(device => {
+            this.emit('device:connected', device.uuid, device.profile)
+            this.emit('meta', device.profile)
             conn.on('close', () => {
               this.deviceManager.unregister(device.uuid)
-              this.emit('datachannel:closed', device.uuid)
+              this.emit('device:closed', device.uuid)
               timer.unsubscribe()
             })
 
 
-            this.emit('meta', device.profile)
             resolv(device.profile)
           })
           .catch(err => reject(err.message))
@@ -696,6 +711,98 @@ class SiRuClient extends EventEmitter {
       resolv()
     })
   }
+
+  /**
+   * When connect to room completed, it will fire
+   *
+   * @event SiRuClient#connect
+   */
+
+  /**
+   * When other device connected
+   *
+   * @event SiRuClient#device:connected
+   * @property {string} uuid - uuid of the device
+   * @property {object} profile - profile object of the device
+   *
+   * @example
+   * client.on('device:connected', (uuid, profile) => {
+   *   console.log(uuid)
+   *   // #=> 'sample-uuid'
+   *   console.log(profile)
+   *   // #=> { description: "...",
+   *   //       handle_id: "...",
+   *   //       name: "some device",
+   *   //       ssg_peerid: "SSG_id",
+   *   //       streaming: true,
+   *   //       topics: [ ... ],
+   *   //       uuid: 'sample-uuid'
+   *   //     }
+   * })
+   */
+
+ /**
+  * When other device connected, it will fire 'meta' event as well.
+  *
+  * @event SiRuClient#meta
+  * @property {object} profile
+  */
+
+
+
+  /**
+   * When publish message received, this event will be fired.
+   *
+   * @event SiRuClient#message
+   * @property {string} topic
+   * @property {data} data
+   *
+   * @example
+   * client.on('message', (topic, data) => {
+   *   console.log(topic, data)
+   *   // #=> "metric/cpu 42.2"
+   * })
+   */
+
+  /**
+   * When media stream received from peer
+   *
+   * @event SiRuClient#stream
+   * @property {object} stream - stream object
+   * @property {string} uuid - uuid of peer
+   *
+   * @example
+   * client.on('stream', stream => {
+   *   video.srcObject = stream
+   * })
+   */
+
+  /**
+   * When error happens while requesting media stream
+   *
+   * @event SiRuClient#stream:error
+   * @property {object} error - Error object
+   * @property {string} uuid - uuid of peer
+   */
+
+  /**
+   * When media stream closed
+   *
+   * @event SiRuClient#stream:closed
+   */
+
+ /**
+  * When connection closed to other device, it will fire
+  *
+  * @event SiRuClient#device:closed
+  */
+
+ /**
+  * When state changed until connecting room completed, it will fire
+  *
+  * @event SiRuClient#state:change
+  * @property {string} state - state
+  */
 }
 
 export default SiRuClient;
