@@ -41,7 +41,7 @@ $ npm install skyway-siru-client
 
 ## prebuilt
 
-* [link to prebuilt library](https://s3-us-west-1.amazonaws.com/skyway-iot-sdk/dist/SiRuClient.js)
+* https://nttcom.github.io/skyway-siru-client/dist/skyway-siru-client.min.js
 
 ## API reference
 
