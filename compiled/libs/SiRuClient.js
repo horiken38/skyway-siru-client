@@ -54,7 +54,7 @@ var STATES = new _enum2.default(['INIT', 'SKYWAY_CONNECTED', 'ROOM_JOINED', 'USE
  * @class
  *
  * @param {string} roomName - The name for PubSub Message Bus.
- * @param {Object} options - option argument of skyway constructor. For more detail, please check https://nttcom.github.io/skyway/en/docs/#JS.
+ * @param {Object} options - option argument of skyway constructor. For more detail, please check https://webrtc.ecl.ntt.com/en/js-reference/Peer.html.
  * @param {string} options.key - SkyWay API key. This is only one mandatory parameter in options.
  * @constructs SiRuClient
  *
