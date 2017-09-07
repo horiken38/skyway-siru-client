@@ -8,7 +8,7 @@ SkyWay IoT SDK room utility for client
 
 ```javascript
 // obtain APIKEY from skyway.io.
-// Don't forget to config your domain in APIKEY setting in https://skyway.io/ds.
+// Don't forget to config your domain and APIKEY setting in our Dashboard https://webrtc.ecl.ntt.com/en/login.html.
 const client = new SiRuClient('myroom', {key: 'YOUR_API_KEY'})
 
 client.on('connect', () => {
@@ -21,7 +21,7 @@ client.on('connect', () => {
     // request remote camera streaming
     client.requestStreaming(uuid)
       .then(stream => video.srcObject = stream)
-    
+
     // subscribe each topic
     profile.topics.forEach(topic => client.subscribe(topic.name))
   })
