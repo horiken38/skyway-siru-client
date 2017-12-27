@@ -23,7 +23,7 @@ client.on('connect', () => {
       .then(stream => video.srcObject = stream)
 
     // subscribe each topic
-    profile.topics.forEach(topic => client.subscribe(topic.name))
+    client.subscribe('testtopic/+')
   })
 
   client.on('message', (topic, mesg) => {

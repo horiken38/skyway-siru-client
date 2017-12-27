@@ -2,115 +2,63 @@
 <html>
   <head>
     <meta charset="utf-8">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script src="dist/skyway-siru-client.js"></script>
+    <script src="../dist/skyway-siru-client.js"></script>
   </head>
   <body>
-    <p>
-      <h1>skyway-siru-client example</h1>
-    </p>
-    <p>
-      <form>
-        <label>apikey</label><input type="text" name="apikey"/></label>
-        <label>room name</label><input type="text" name="room-name"/></label>
-        <button type="submit">start</button>
-      </form>
-    </p>
-    <p>
-      <strong>status : </strong><span id="status"></span>
-    </p>
-    <p>
-      <ul>
-        <li>uuid: <span id="uuid"></span></li>
-        <li>echo message: <span id="echo-mesg"></span></li>
-        <li>published message: <span id="published-mesg"></span></li>
-      </ul>
-    </p>
-    <p>
-      <div><strong>video status: </strong><span id="video-status">idle</span></div>
-      <button id="stop-video">stop video</button><br/>
-      <video id="janusvideo" autoplay></video>
-    </p>
+    <div class="container">
+      <div>
+        <h1>skyway-siru-client example</h1>
+      </div>
 
-    <div id="output">
-      <ul id="list"></ul>
+      <div class="mb-4">
+        <form class="form-inline connect">
+          <label for="input-apikey">apikey : </label>
+          <input class="form-control mr-3" type="text" id="input-apikey" placeholder="your APIKEY here."/>
+
+          <label for="input-room-name">room name : </label>
+          <input class="form-control mr-3" type="text" id="input-room-name" value="testroom"/>
+
+          <label for="input-topic-name">topic name : </label>
+          <input class="form-control mr-3" type="text" id="input-topic-name" value="testtopic"/>
+
+          <button class="btn btn-primary" type="submit">start</button>
+        </form>
+      </div>
+
+      <div class="card md-5">
+        <div class="card-body">
+          <div class="card-title">
+            <h4>state table</h4>
+          </div>
+          <div class="card-body">
+            <table class="table">
+              <tr><th>status</th><td id="status">init</td></tr>
+              <tr><th>uuid</th><td id="uuid">N/A</td></tr>
+              <tr><th>video</th><td id="video-status">idle</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mt-3">
+        <div class="col-md-8">
+          <video id="janusvideo" autoplay></video>
+        </div>
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-body">
+              <form class="form-inline publish">
+                <input class="form-control form-control-sm mr-1" type="text" id="pub-mesg" placeholder="message here."/>
+                <button class="btn btn-primary btn-sm" type="submit">send</button>
+              </form>
+              <div id="pubsub-mesg"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <script>
-      const __STOREKEY__ = 'skyway-siru-client-sample'
-
-      const conf = JSON.parse(localStorage.getItem(__STOREKEY__))
-
-      if(conf) {
-        $("input[name=apikey]").val(conf.apikey)
-        $("input[name=room-name]").val(conf.roomName)
-      }
-      $("#stop-video").prop("disabled", true)
-
-      $("form").on("submit", function(ev) {
-        ev.preventDefault()
-        $(this).find("button").prop("disabled", true)
-
-        const apikey = $(this).find("input[name=apikey]").val()
-          , roomName = $(this).find("input[name=room-name]").val()
-
-        storeLocalStorage({apikey, roomName})
-        start(roomName, apikey)
-      })
-
-      const storeLocalStorage = param => {
-        localStorage.setItem(__STOREKEY__, JSON.stringify(param))
-      }
-
-      const start = (roomName, apikey) => {
-        const client = new SiRuClient(roomName, {key: apikey})
-
-        updateStatus('connecting...')
-
-        client.on('connect', () => updateStatus('connected'))
-        client.on('meta', profile => {
-          $("#uuid").text(profile.uuid)
-          startStreaming(client, profile)
-          startSubscribe(client, profile.topics)
-          sendEchoRequest(client, profile.uuid)
-        })
-      }
-
-      const startStreaming = (client, profile) => {
-        $("#video-status").text("requesting")
-        client.requestStreaming(profile.uuid)
-          .then( stream => {
-            $("#video-status").text("started")
-            $("video")[0].srcObject = stream
-
-            $("#stop-video")
-              .prop("disabled", false)
-              .on("click", ev => {
-                client.stopStreaming(profile.uuid)
-                  .then( () => {
-                    console.log('stop video streaming')
-                  })
-              })
-          })
-      }
-
-      const startSubscribe = (client, topics) => {
-        topics.forEach(topic => {
-          client.subscribe(topic.name)
-          client.on('message', (topicName, mesg) => $("#published-mesg").text(topicName + " : " + mesg))
-        })
-      }
-
-      const sendEchoRequest = (client, uuid) => {
-        $("#echo-message").text("fetching...")
-        client.fetch( uuid + "/echo/hello" )
-          .then(res => res.text())
-          .then(text => $("#echo-mesg").text("receive : " + text))
-          .catch(err => console.warn(err.message))
-      }
-
-      const updateStatus = (mesg) => {
-        $("#status").text(mesg)
-      }
-    </script>
+    <script src="./script.js"></script>
   </body>
 </html>

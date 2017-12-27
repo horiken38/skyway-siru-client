@@ -48,6 +48,7 @@ class DeviceManager {
 
       // listener for profile response
       const registerListener =  data => {
+
         if(data.length <= 4) return
 
         const head = data.slice(0,4).toString()
@@ -87,12 +88,8 @@ class DeviceManager {
    */
   unregister(uuid: string): Promise<any> {
     return new Promise((resolv, reject) => {
-      if(!this.exist(uuid)) {
-        reject(new Error(`try to unregister ${uuid}, but it does not exist`))
-      } else {
-        this.devices = this.devices.filter(device => device.uuid !== uuid)
-        resolv()
-      }
+      this.devices = this.devices.filter(device => device.uuid !== uuid)
+      resolv()
     })
   }
 

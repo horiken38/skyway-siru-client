@@ -188,9 +188,6 @@ class SiRuClient extends EventEmitter {
       this.deviceManager.devices.forEach( device => {
         device.connection.send(_serialized)
       })
-
-      // if the topic is subscribed by myself, fire 'message' event
-      if (this.topics.indexOf(topic) !== -1) this.emit('message', topic, data)
     } else {
       if( typeof(topic) !== 'string' ) throw new Error("topic should be string")
       if( typeof(data) !== 'string' && typeof(data) !== 'object' ) throw new Error("data should be string or object")
@@ -427,7 +424,6 @@ class SiRuClient extends EventEmitter {
         const timer = Rx.Observable.interval(util.KEEPALIVETIMER)
           .subscribe(() => {
             if(conn) conn.send(keepalive_mesg)
-            else timer.unsubscribe()
           })
 
         conn.on('data', data => {
@@ -442,7 +438,6 @@ class SiRuClient extends EventEmitter {
             conn.on('close', () => {
               this.deviceManager.unregister(device.uuid)
               this.emit('device:closed', device.uuid)
-              timer.unsubscribe()
             })
 
 
@@ -469,12 +464,30 @@ class SiRuClient extends EventEmitter {
       const topic   = _data.topic
       const message = _data.payload
 
-      if(this.topics.indexOf(topic) !== -1) {
-        // published message
-        // In this case message is arbitrary
+      // check whether topic matches
+      this.topics.filter( s_t => {
+        const arr = s_t.split("/")
+        let ret = true, wc = false
+
+        topic.split("/").forEach( (key, i) => {
+          if( key === arr[i] || arr[i] === "+" || wc ) {
+            // key matched, do nothing
+          } else if (arr[i] === "#") {
+            // key is wild card, mark wc as ``true``
+            wc = true
+          } else {
+            // key does not match, mark ret as ``false``
+            ret = false
+          }
+        })
+        return ret
+      }).forEach( s_t => {
         this.emit('message', topic, message)
-      } else if(this.deviceManager.exist(topic)) {
-        // when message is request and response type
+      })
+
+      if(this.deviceManager.exist(topic)) {
+        // when message is REST type interface.
+        //
         // In this case, message must be
         // {status, transaction_id, method, chunked, chunk_len, idx, body, chunk}
         // : {status: number,
