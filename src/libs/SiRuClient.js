@@ -185,7 +185,8 @@ class SiRuClient extends EventEmitter {
 
       // send serialized message to all connecting peer.
       const _serialized = JSON.stringify(_data)
-      this.deviceManager.devices.forEach( device => {
+      this.deviceManager.devices.forEach( (device, i) => {
+        console.log(`to device ${i} : send`);
         device.connection.send(_serialized)
       })
     } else {
@@ -237,6 +238,7 @@ class SiRuClient extends EventEmitter {
 
         const __listener = call => {
           const __uuid = this.deviceManager.getUUID(call.remoteId)
+          this.skyway.removeListener('call', __listener)
 
           if(__uuid !== uuid) return
 
@@ -248,7 +250,6 @@ class SiRuClient extends EventEmitter {
           })
           call.on('error', err => {
             this.emit('stream:error', err, uuid)
-            this.skyway.removeListener('call', __listener)
             this.deviceManager.unsetCallObject(uuid)
 
             if(!resolved) {
@@ -258,7 +259,6 @@ class SiRuClient extends EventEmitter {
           })
           call.on('close', () => {
             this.emit('stream:closed', uuid)
-            this.skyway.removeListener('call', __listener)
             this.deviceManager.unsetCallObject(uuid)
 
             if(!resolved) {
@@ -268,6 +268,7 @@ class SiRuClient extends EventEmitter {
             }
           })
 
+          console.log('call answer')
           call.answer()
         }
         this.skyway.on('call',  __listener)
@@ -420,7 +421,6 @@ class SiRuClient extends EventEmitter {
       conn.on('open', () => {
         // start keepalive timer
         const keepalive_mesg = `SSG:keepalive,${this.myid}`
-        conn.send(keepalive_mesg)
         const timer = Rx.Observable.interval(util.KEEPALIVETIMER)
           .subscribe(() => {
             if(conn) conn.send(keepalive_mesg)
@@ -604,7 +604,7 @@ class SiRuClient extends EventEmitter {
    */
   _handleRoomJoin(mesg: Object): void {
     if(mesg.src !== this.myid) {
-      // when we receive room_join message for other peer, we will make DataChannel connection.
+      // when we receive room_join message from other, we will make DataChannel connection.
       this._createDCConnection(mesg.src)
     }
   }

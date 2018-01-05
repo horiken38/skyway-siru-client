@@ -445,7 +445,8 @@ var SiRuClient = function (_EventEmitter) {
 
           // send serialized message to all connecting peer.
         };var _serialized = JSON.stringify(_data);
-        this.deviceManager.devices.forEach(function (device) {
+        this.deviceManager.devices.forEach(function (device, i) {
+          console.log('to device ' + i + ' : send');
           device.connection.send(_serialized);
         });
       } else {
@@ -510,6 +511,7 @@ var SiRuClient = function (_EventEmitter) {
 
           var __listener = function __listener(call) {
             var __uuid = _this4.deviceManager.getUUID(call.remoteId);
+            _this4.skyway.removeListener('call', __listener);
 
             if (__uuid !== uuid) return;
 
@@ -521,7 +523,6 @@ var SiRuClient = function (_EventEmitter) {
             });
             call.on('error', function (err) {
               _this4.emit('stream:error', err, uuid);
-              _this4.skyway.removeListener('call', __listener);
               _this4.deviceManager.unsetCallObject(uuid);
 
               if (!resolved) {
@@ -531,7 +532,6 @@ var SiRuClient = function (_EventEmitter) {
             });
             call.on('close', function () {
               _this4.emit('stream:closed', uuid);
-              _this4.skyway.removeListener('call', __listener);
               _this4.deviceManager.unsetCallObject(uuid);
 
               if (!resolved) {
@@ -541,6 +541,7 @@ var SiRuClient = function (_EventEmitter) {
               }
             });
 
+            console.log('call answer');
             call.answer();
           };
           _this4.skyway.on('call', __listener);
@@ -712,7 +713,6 @@ var SiRuClient = function (_EventEmitter) {
         );conn.on('open', function () {
           // start keepalive timer
           var keepalive_mesg = 'SSG:keepalive,' + _this8.myid;
-          conn.send(keepalive_mesg);
           var timer = _rx2.default.Observable.interval(_util2.default.KEEPALIVETIMER).subscribe(function () {
             if (conn) conn.send(keepalive_mesg);
           });
@@ -910,7 +910,7 @@ var SiRuClient = function (_EventEmitter) {
     key: '_handleRoomJoin',
     value: function _handleRoomJoin(mesg) {
       if (mesg.src !== this.myid) {
-        // when we receive room_join message for other peer, we will make DataChannel connection.
+        // when we receive room_join message from other, we will make DataChannel connection.
         this._createDCConnection(mesg.src);
       }
     }
@@ -33101,8 +33101,10 @@ var DeviceManager = function () {
 
         // listener for profile response
         var registerListener = function registerListener(data) {
-
+          console.log(data);
           if (data.length <= 4) return;
+          conn.removeListener('data', registerListener);
+          retFlag = true;
 
           var head = data.slice(0, 4).toString(),
               body = data.slice(4).toString();
@@ -33110,12 +33112,8 @@ var DeviceManager = function () {
           if (head !== "SSG:" || !_util2.default.isJSONString(body)) return;
 
           _this._register(conn, JSON.parse(body)).then(function (device) {
-            conn.removeListener('data', registerListener);
-            retFlag = true;
             resolv(device);
           }).catch(function (err) {
-            conn.removeListener('data', registerListener);
-            retFlag = true;
             reject(err);
           });
         };
@@ -33228,7 +33226,6 @@ var DeviceManager = function () {
             peerid = data.body && (data.body.peerid || data.body.ssg_peerid),
             connection = conn,
             profile = data.body;
-        var retFlag = false;
 
         try {
           if (data.type === 'response' && data.target === 'profile' && data.method === 'get') {
@@ -33240,17 +33237,13 @@ var DeviceManager = function () {
             });
 
             _this3.devices.push(device);
-            retFlag = true;
             resolv(device);
+          } else {
+            reject('_register - does not match. type: ' + data.type + ', target: ' + data.target + ', method: ' + data.method);
           }
         } catch (err) {
-          retFlag = true;
           reject(err);
         }
-
-        setTimeout(function () {
-          if (!retFlag) reject(new Error('_register: timeout'));
-        }, _this3.timeout);
       });
     }
 

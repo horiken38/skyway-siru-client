@@ -48,8 +48,10 @@ class DeviceManager {
 
       // listener for profile response
       const registerListener =  data => {
-
+        console.log(data)
         if(data.length <= 4) return
+        conn.removeListener('data', registerListener)
+        retFlag = true
 
         const head = data.slice(0,4).toString()
           , body = data.slice(4).toString()
@@ -58,12 +60,8 @@ class DeviceManager {
 
         this._register(conn, JSON.parse(body))
           .then((device) => {
-            conn.removeListener('data', registerListener)
-            retFlag = true
             resolv(device)
           }).catch(err => {
-            conn.removeListener('data', registerListener)
-            retFlag = true
             reject(err)
           })
       }
@@ -152,7 +150,6 @@ class DeviceManager {
         , peerid      = data.body && ( data.body.peerid || data.body.ssg_peerid )
         , connection  = conn
         , profile     = data.body
-      let retFlag = false
 
       try {
         if(data.type === 'response' && data.target === 'profile' && data.method === 'get') {
@@ -162,17 +159,13 @@ class DeviceManager {
           this.devices = this.devices.filter(_device => _device.uuid !== uuid)
 
           this.devices.push(device)
-          retFlag = true
           resolv(device)
+        } else {
+          reject(`_register - does not match. type: ${data.type}, target: ${data.target}, method: ${data.method}`);
         }
       } catch(err) {
-        retFlag = true
         reject(err)
       }
-
-      setTimeout(() => {
-        if(!retFlag) reject( new Error('_register: timeout'))
-      }, this.timeout)
     })
   }
 
