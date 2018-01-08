@@ -55,16 +55,27 @@ const start = (roomName, apikey) => {
   })
 
   client.on('message', (topic, data) => {
+    // when data size exceeds 16 bytes, we will display data size only.
+    if(data.length > 16) data = `received ${data.length} bytes of data`;
+
     $(`<div><b>${topic}</b> : ${data}</div>`).appendTo("#pubsub-mesg");
   })
 
   $("form.publish").on("submit", ev => {
     ev.preventDefault()
 
-    const mesg = $("#pub-mesg").val()
+    let mesg = $("#pub-mesg").val()
     $("#pub-mesg").val("")
 
-    if(!!mesg) client.publish(topicName, `published: ${mesg}`)
+    // when message is ``number``, we will create same size of string for test purpose.
+    let size;
+    if( size = parseInt(mesg) ) {
+      const arr = [];
+      for(let i = 0; i < size; i++) arr.push('a')
+      mesg = arr.join("")
+    }
+
+    if(!!mesg) client.publish(topicName, mesg)
   })
 }
 
