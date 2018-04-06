@@ -41,7 +41,7 @@ const start = (roomName, apikey) => {
       }
     ]
     , config = { iceServers, iceTransportPolicy: 'all' }
-    , client = new SiRuClient(roomName, { key: apikey, config })
+    , client = new SiRuClient(roomName, { key: apikey, debug: 3, config })
 
   $("#status").text('connecting...')
 
