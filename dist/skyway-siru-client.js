@@ -541,7 +541,6 @@ var SiRuClient = function (_EventEmitter) {
               }
             });
 
-            console.log('call answer');
             call.answer();
           };
           _this4.skyway.on('call', __listener);

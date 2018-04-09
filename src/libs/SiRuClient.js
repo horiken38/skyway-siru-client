@@ -268,7 +268,6 @@ class SiRuClient extends EventEmitter {
             }
           })
 
-          console.log('call answer')
           call.answer()
         }
         this.skyway.on('call',  __listener)
