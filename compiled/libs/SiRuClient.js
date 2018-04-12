@@ -217,12 +217,10 @@ var SiRuClient = function (_EventEmitter) {
 
           // send serialized message to all connecting peer.
         };var _serialized = JSON.stringify(_data);
-        this.deviceManager.devices.forEach(function (device) {
+        this.deviceManager.devices.forEach(function (device, i) {
+          console.log('to device ' + i + ' : send');
           device.connection.send(_serialized);
-        }
-
-        // if the topic is subscribed by myself, fire 'message' event
-        );if (this.topics.indexOf(topic) !== -1) this.emit('message', topic, data);
+        });
       } else {
         if (typeof topic !== 'string') throw new Error("topic should be string");
         if (typeof data !== 'string' && (typeof data === 'undefined' ? 'undefined' : _typeof(data)) !== 'object') throw new Error("data should be string or object");
@@ -285,6 +283,7 @@ var SiRuClient = function (_EventEmitter) {
 
           var __listener = function __listener(call) {
             var __uuid = _this4.deviceManager.getUUID(call.remoteId);
+            _this4.skyway.removeListener('call', __listener);
 
             if (__uuid !== uuid) return;
 
@@ -296,7 +295,6 @@ var SiRuClient = function (_EventEmitter) {
             });
             call.on('error', function (err) {
               _this4.emit('stream:error', err, uuid);
-              _this4.skyway.removeListener('call', __listener);
               _this4.deviceManager.unsetCallObject(uuid);
 
               if (!resolved) {
@@ -306,7 +304,6 @@ var SiRuClient = function (_EventEmitter) {
             });
             call.on('close', function () {
               _this4.emit('stream:closed', uuid);
-              _this4.skyway.removeListener('call', __listener);
               _this4.deviceManager.unsetCallObject(uuid);
 
               if (!resolved) {
@@ -487,9 +484,8 @@ var SiRuClient = function (_EventEmitter) {
         );conn.on('open', function () {
           // start keepalive timer
           var keepalive_mesg = 'SSG:keepalive,' + _this8.myid;
-          conn.send(keepalive_mesg);
           var timer = _rx2.default.Observable.interval(_util2.default.KEEPALIVETIMER).subscribe(function () {
-            if (conn) conn.send(keepalive_mesg);else timer.unsubscribe();
+            if (conn) conn.send(keepalive_mesg);
           });
 
           conn.on('data', function (data) {
@@ -502,7 +498,6 @@ var SiRuClient = function (_EventEmitter) {
             conn.on('close', function () {
               _this8.deviceManager.unregister(device.uuid);
               _this8.emit('device:closed', device.uuid);
-              timer.unsubscribe();
             });
 
             resolv(device.profile);
@@ -528,18 +523,39 @@ var SiRuClient = function (_EventEmitter) {
   }, {
     key: '_handleDCData',
     value: function _handleDCData(data) {
+      var _this9 = this;
+
       if (data.indexOf('SSG:') === 0) return; // ignore control data
       try {
         var _data = JSON.parse(data // _data = {topic, payload}: {topic:string, payload: object}
         );var topic = _data.topic;
         var message = _data.payload;
 
-        if (this.topics.indexOf(topic) !== -1) {
-          // published message
-          // In this case message is arbitrary
-          this.emit('message', topic, message);
-        } else if (this.deviceManager.exist(topic)) {
-          // when message is request and response type
+        // check whether topic matches
+        this.topics.filter(function (s_t) {
+          var arr = s_t.split("/");
+          var ret = true,
+              wc = false;
+
+          topic.split("/").forEach(function (key, i) {
+            if (key === arr[i] || arr[i] === "+" || wc) {
+              // key matched, do nothing
+            } else if (arr[i] === "#") {
+              // key is wild card, mark wc as ``true``
+              wc = true;
+            } else {
+              // key does not match, mark ret as ``false``
+              ret = false;
+            }
+          });
+          return ret;
+        }).forEach(function (s_t) {
+          _this9.emit('message', topic, message);
+        });
+
+        if (this.deviceManager.exist(topic)) {
+          // when message is REST type interface.
+          //
           // In this case, message must be
           // {status, transaction_id, method, chunked, chunk_len, idx, body, chunk}
           // : {status: number,
@@ -640,18 +656,18 @@ var SiRuClient = function (_EventEmitter) {
   }, {
     key: '_setRoomHandlers',
     value: function _setRoomHandlers() {
-      var _this9 = this;
+      var _this10 = this;
 
       var __socket = this.skyway.socket;
 
       // when user join message received
       __socket.on(_util2.default.MESSAGE_TYPES.SERVER.ROOM_USER_JOIN.key, function (mesg) {
-        if (_this9.roomName === mesg.roomName) _this9._handleRoomJoin(mesg);
+        if (_this10.roomName === mesg.roomName) _this10._handleRoomJoin(mesg);
       });
 
       // when user leave message received
       __socket.on(_util2.default.MESSAGE_TYPES.SERVER.ROOM_USER_LEAVE.key, function (mesg) {
-        if (_this9.roomName === mesg.roomName) _this9._handleRoomLeave(mesg);
+        if (_this10.roomName === mesg.roomName) _this10._handleRoomLeave(mesg);
       });
     }
 
@@ -665,7 +681,7 @@ var SiRuClient = function (_EventEmitter) {
     key: '_handleRoomJoin',
     value: function _handleRoomJoin(mesg) {
       if (mesg.src !== this.myid) {
-        // when we receive room_join message for other peer, we will make DataChannel connection.
+        // when we receive room_join message from other, we will make DataChannel connection.
         this._createDCConnection(mesg.src);
       }
     }
@@ -698,7 +714,7 @@ var SiRuClient = function (_EventEmitter) {
   }, {
     key: '_connectToDevices',
     value: function _connectToDevices(userList) {
-      var _this10 = this;
+      var _this11 = this;
 
       // currently, room api has a bug that there are duplicated peerids
       // in user list. So, we'll eliminate it
@@ -708,7 +724,7 @@ var SiRuClient = function (_EventEmitter) {
       _underscore2.default.uniq(userList).filter(function (id) {
         return id.indexOf("SSG_") === 0;
       }).forEach(function (id) {
-        return _this10._createDCConnection(id);
+        return _this11._createDCConnection(id);
       });
     }
 
@@ -720,21 +736,21 @@ var SiRuClient = function (_EventEmitter) {
   }, {
     key: '_sendUserListRequest',
     value: function _sendUserListRequest() {
-      var _this11 = this;
+      var _this12 = this;
 
       return new Promise(function (resolv, reject) {
         var __resolved = false;
         var __data = {
-          roomName: _this11.roomName,
+          roomName: _this12.roomName,
           type: 'media'
         };
-        var __socket = _this11.skyway.socket;
+        var __socket = _this12.skyway.socket;
         var __REQUEST = _util2.default.MESSAGE_TYPES.CLIENT.ROOM_GET_USERS.key;
         var __EXPECTED = _util2.default.MESSAGE_TYPES.SERVER.ROOM_USERS.key;
 
         // when user list received
         var __listener = function __listener(mesg) {
-          if (_this11.roomName === mesg.roomName) {
+          if (_this12.roomName === mesg.roomName) {
             __resolved = true;
             __socket.removeListener(__EXPECTED, __listener);
             resolv(mesg.userList);

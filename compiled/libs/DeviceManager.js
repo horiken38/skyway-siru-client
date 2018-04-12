@@ -73,7 +73,10 @@ var DeviceManager = function () {
 
         // listener for profile response
         var registerListener = function registerListener(data) {
+          console.log(data);
           if (data.length <= 4) return;
+          conn.removeListener('data', registerListener);
+          retFlag = true;
 
           var head = data.slice(0, 4).toString(),
               body = data.slice(4).toString();
@@ -81,12 +84,8 @@ var DeviceManager = function () {
           if (head !== "SSG:" || !_util2.default.isJSONString(body)) return;
 
           _this._register(conn, JSON.parse(body)).then(function (device) {
-            conn.removeListener('data', registerListener);
-            retFlag = true;
             resolv(device);
           }).catch(function (err) {
-            conn.removeListener('data', registerListener);
-            retFlag = true;
             reject(err);
           });
         };
@@ -116,14 +115,10 @@ var DeviceManager = function () {
       var _this2 = this;
 
       return new Promise(function (resolv, reject) {
-        if (!_this2.exist(uuid)) {
-          reject(new Error('try to unregister ' + uuid + ', but it does not exist'));
-        } else {
-          _this2.devices = _this2.devices.filter(function (device) {
-            return device.uuid !== uuid;
-          });
-          resolv();
-        }
+        _this2.devices = _this2.devices.filter(function (device) {
+          return device.uuid !== uuid;
+        });
+        resolv();
       });
     }
 
@@ -203,7 +198,6 @@ var DeviceManager = function () {
             peerid = data.body && (data.body.peerid || data.body.ssg_peerid),
             connection = conn,
             profile = data.body;
-        var retFlag = false;
 
         try {
           if (data.type === 'response' && data.target === 'profile' && data.method === 'get') {
@@ -215,17 +209,13 @@ var DeviceManager = function () {
             });
 
             _this3.devices.push(device);
-            retFlag = true;
             resolv(device);
+          } else {
+            reject('_register - does not match. type: ' + data.type + ', target: ' + data.target + ', method: ' + data.method);
           }
         } catch (err) {
-          retFlag = true;
           reject(err);
         }
-
-        setTimeout(function () {
-          if (!retFlag) reject(new Error('_register: timeout'));
-        }, _this3.timeout);
       });
     }
 
