@@ -52,20 +52,7 @@ const startStreaming = (client, profile) => {
 //
 const startService = (roomName, apikey) => {
   // set test ice server setting which is dedicated to IoT SDK
-  const iceServers = [
-      { 'urls': 'stun:stun.webrtc.ecl.ntt.com:3478' },
-      {
-        'urls': 'turn:52.41.145.197:443?transport=udp',
-        'credential': 's1rUu5ev',
-        'username': 'siruuser'
-      },
-      {
-        'urls': 'turn:52.41.145.197:443?transport=tcp',
-        'credential': 's1rUu5ev',
-        'username': 'siruuser'
-      }
-    ]
-    , config = { iceServers, iceTransportPolicy: 'all' }
+  const config = { iceTransportPolicy: 'all' };
 
   // start connection to IoT SDK.
   const client = new SiRuClient(roomName, { key: apikey, debug: 3, config })
