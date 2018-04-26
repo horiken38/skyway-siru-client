@@ -5,8 +5,8 @@ const EventEmitter =require('events')
 const TEST_ID = 'test-id'
 
 class Call extends EventEmitter {
-  constructor() {
-    super()
+  constructor(parent) {
+    super(parent)
 
     this.remoteId = 'SSG_test-other-id'
   }
@@ -40,6 +40,9 @@ class Conn extends EventEmitter {
 
     setTimeout( ev => {
       this.emit('open')
+      setTimeout(ev => {
+        this.emit('data', Buffer.from(this.data))
+      }, 100)
     }, 100)
 
   }
@@ -74,6 +77,7 @@ class Conn extends EventEmitter {
       }
     }
   }
+
 }
 
 
@@ -112,6 +116,14 @@ class SkyWay extends EventEmitter {
 
     return conn
   }
+  call() {
+    const call = new Call();
+    setTimeout( ev => {
+      call.emit('stream', null);
+    }, 100);
+    return call;
+  }
+
 }
 
 export default SkyWay

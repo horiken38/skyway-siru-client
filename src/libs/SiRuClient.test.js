@@ -1,6 +1,6 @@
 import SiRuClient from './SiRuClient'
-import _ from 'underscore'
-import EventEmitter from 'events'
+// import _ from 'underscore'
+// import EventEmitter from 'events'
 
 jest.mock('../assets/skyway.js')
 
@@ -205,3 +205,86 @@ describe('streaming test', () => {
   })
 })
 
+describe('sendStream() test', () => {
+  // todo - write timeout test
+  //
+  let siru
+  const uuid = 'test-uuid'
+
+  beforeEach(() => {
+    siru = new SiRuClient(roomName, {key})
+  })
+
+  afterEach(() => {
+    siru = null
+  })
+
+  test('sendStream return resolve when proper arguments are set', done => {
+    setTimeout( ev => {
+      const stream = new Object();
+      siru.sendStream( uuid, stream )
+        .then( call => {
+          expect( call ).toBeDefined();
+          done();
+        });
+    }, 500);
+  })
+  test('sendStream return reject when uuid is not exist', done => {
+    setTimeout( ev => {
+      const stream = new Object();
+      siru.sendStream( 'unexist-id', stream )
+        .catch( err => {
+          expect( err ).toBeInstanceOf(Error);
+          done();
+        });
+    }, 500);
+  })
+  test('sendStream return reject when uuid is not set', done => {
+    setTimeout( ev => {
+      siru.sendStream()
+        .catch( err => {
+          expect( err ).toBeInstanceOf(Error);
+          done();
+        });
+    }, 500);
+  })
+  test('sendStream return reject when uuid is not string', done => {
+    setTimeout( ev => {
+      const stream = new Object();
+      siru.sendStream( 12345, stream )
+        .catch( err => {
+          expect( err ).toBeInstanceOf(Error);
+          done();
+        });
+    }, 500);
+  })
+
+  test('sendStream return reject when stream is not set', done => {
+    setTimeout( ev => {
+      siru.sendStream( 12345 )
+        .catch( err => {
+          expect( err ).toBeInstanceOf(Error);
+          done();
+        });
+    }, 500);
+  })
+  test('sendStream return reject when stream is not object', done => {
+    setTimeout( ev => {
+      siru.sendStream( uuid, 'hoge' )
+        .catch( err => {
+          expect( err ).toBeInstanceOf(Error);
+          done();
+        });
+    }, 500);
+  })
+  test('sendStream return reject when options is set but not object', done => {
+    setTimeout( ev => {
+      const stream = new Object();
+      siru.sendStream( uuid, stream, 123 )
+        .catch( err => {
+          expect( err ).toBeInstanceOf(Error);
+          done();
+        });
+    }, 500);
+  })
+});

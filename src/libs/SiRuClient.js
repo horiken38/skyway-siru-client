@@ -329,6 +329,75 @@ class SiRuClient extends EventEmitter {
   }
 
   /**
+   * request stop streaming to SSG
+   *
+   * This method will send mediaStream to device.
+   * This method is useful for playing voice at remote speaker,
+   * recording audio and remote audio recognition etc.
+   * About options, see more detail at
+   * https://webrtc.ecl.ntt.com/skyway-js-sdk-doc/en/peer/#call-options-object
+   *
+   * @param {string} uuid - uuid of target device
+   * @param {Object} stream - media stream object
+   * @param {Object} [options]
+   * @param {string} [options.audioCodec='opus'] - audio codec
+   * @param {string} [options.videoCodec='H264'] - video codec
+   * @return {Promise<Media Connection Object>} - see https://webrtc.ecl.ntt.com/skyway-js-sdk-doc/en/mediaconnection/
+   *
+   * @method SiRuClient#sendStream
+   *
+   * @example
+   *
+   * const client = new SiRuClient( 'testroom', { key: 'YOUR_API_KEY' } );
+   *
+   * navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+   *   .then( stream =>
+   *      client.sendStream( uuid, stream )
+   *   )
+   *   .then( call => console.log('start sending local stream') )
+   *   .catch( err => console.warn(err) );
+   */
+  sendStream(
+    uuid: string,
+    stream: Object,
+    options: ?{ audioCodec: string, videoCodec: string } = { audioCodec: 'opus', videoCodec: 'H264' }
+  ): Promise<void> {
+    return new Promise( (resolve, reject) => {
+      // validation
+      if( typeof(uuid) !== 'string' ) reject( new Error('parameter `uuid` MUST be string.') )
+      else if( typeof( stream ) !== 'object' ) reject( new Error('parameter `stream` MUST be object.') )
+      else if( options !== undefined && typeof(options) !== 'object' ) reject( new Error('parameter `options` MUST be object') )
+      else if( !this.deviceManager.getPeerid(uuid) ) reject( new Error(`uuid ${uuid} does not exist.`) )
+      else {
+        // implementation
+        const _options = Object.assign( {
+          audioCodec: 'opus',
+          videoCodec: 'H264'
+        }, options );
+        const peerid = this.deviceManager.getPeerid(uuid);
+        const call = this.skyway.call( peerid, stream, _options )
+
+        const timeout = 10000; // 10 sec
+        let timer = setTimeout( ev => {
+          timer = null;
+          call.close();
+          reject(new Error("cannot make media stream connection."));
+        }, timeout );
+
+        call.on('stream', stream => {
+          // since nothing streamed from device, we will simply consider that this event
+          // means media connection is established.
+          if(timer) {
+            clearTimeout(timer);
+            timer = null;
+            resolve(call);
+          }
+        });
+      }
+    });
+  }
+
+  /**
    * create SkyWay connection
    * @private
    */
@@ -438,7 +507,6 @@ class SiRuClient extends EventEmitter {
               this.deviceManager.unregister(device.uuid)
               this.emit('device:closed', device.uuid)
             })
-
 
             resolv(device.profile)
           })

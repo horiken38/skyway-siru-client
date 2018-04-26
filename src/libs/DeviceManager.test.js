@@ -64,46 +64,34 @@ describe('_register() test', () => {
       })
   })
 
-  it('will raise timeout error, when type is not "response"', () => {
-    jest.useFakeTimers()
+  it('will reject, when type is not "response"', () => {
     data.type = 'not_response'
 
     const test = deviceManager._register(conn, data)
       .catch( err => {
-        expect(err.message).toMatch(/timeout/)
-        expect(setTimeout.mock.calls.length).toBe(1)
-        expect(setTimeout.mock.calls[0][1]).toBe(deviceManager.timeout)
+        expect(err).toBeInstanceOf(Error)
       })
 
-    jest.runAllTimers()  // fast-forward the timer
     return test
   })
-  it('will raise timeout error, when target is not "profile"', () => {
-    jest.useFakeTimers()
+  it('will reject, when target is not "profile"', () => {
     data.target = 'not_profile'
 
     const test = deviceManager._register(conn, data)
       .catch( err => {
-        expect(err.message).toMatch(/timeout/)
-        expect(setTimeout.mock.calls.length).toBe(1)
-        expect(setTimeout.mock.calls[0][1]).toBe(deviceManager.timeout)
+        expect(err).toBeInstanceOf(Error)
       })
 
-    jest.runAllTimers()  // fast-forward the timer
     return test
   })
-  it('will raise timeout error, when method is not "get"', () => {
-    jest.useFakeTimers()
+  it('will reject, when method is not "get"', () => {
     data.method = 'not_get'
 
     const test = deviceManager._register(conn, data)
       .catch( err => {
-        expect(err.message).toMatch(/timeout/)
-        expect(setTimeout.mock.calls.length).toBe(1)
-        expect(setTimeout.mock.calls[0][1]).toBe(deviceManager.timeout)
+        expect(err).toBeInstanceOf(Error)
       })
 
-    jest.runAllTimers()  // fast-forward the timer
     return test
   })
   it('will raise error, when body is undefined', () => {
@@ -200,53 +188,47 @@ describe('register() test', () => {
     return test
   })
 
-  it('will raise timeout error, when profile preamble of response body is incorrect', () => {
+  it('will reject, when profile preamble of response body is incorrect', () => {
     conn.preamble = 'ssg:'
     conn.createData()
-    jest.useFakeTimers()
 
     const test = deviceManager.register(conn)
-      .then( device => console.log(device))
       .catch( err => {
-        expect(err.message).toMatch(/timeout/)
+        expect(err).toBeInstanceOf(Error)
       })
-    jest.runAllTimers()
+
     return test
   })
 
-  it('will raise timeout error, when profile response does not include uuid', () => {
+  it('will reject, when profile response does not include uuid', () => {
+    // property should be uuid, not UUID
     conn.body = JSON.stringify({
       type: 'response', target: 'profile', method: 'get',
       body: { UUID: 'test-uuid', peerid: 'ssg-peerid' }
     })
 
     conn.createData()
-    jest.useFakeTimers()
 
     const test = deviceManager.register(conn)
-      .then( device => console.log(device))
       .catch( err => {
-        expect(err.message).toMatch(/timeout/)
+        expect(err).toBeInstanceOf(Error)
       })
-    jest.runAllTimers()
     return test
   })
 
-  it('will raise timeout error, when profile response does not include peerid', () => {
+  it('will reject, when profile response does not include peerid', () => {
+    // propery should be peerid, not PEERID
     conn.body = JSON.stringify({
       type: 'response', target: 'profile', method: 'get',
       body: { uuid: 'test-uuid', PEERID: 'ssg-peerid' }
     })
 
     conn.createData()
-    jest.useFakeTimers()
 
     const test = deviceManager.register(conn)
-      .then( device => console.log(device))
       .catch( err => {
-        expect(err.message).toMatch(/timeout/)
+        expect(err).toBeInstanceOf(Error)
       })
-    jest.runAllTimers()
     return test
   })
 })

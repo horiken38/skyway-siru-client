@@ -48,7 +48,6 @@ class DeviceManager {
 
       // listener for profile response
       const registerListener =  data => {
-        console.log(data)
         if(data.length <= 4) return
         conn.removeListener('data', registerListener)
         retFlag = true
@@ -56,14 +55,16 @@ class DeviceManager {
         const head = data.slice(0,4).toString()
           , body = data.slice(4).toString()
 
-        if(head !== "SSG:" ||  !util.isJSONString(body)) return
-
-        this._register(conn, JSON.parse(body))
-          .then((device) => {
-            resolv(device)
-          }).catch(err => {
-            reject(err)
-          })
+        if(head !== "SSG:" ||  !util.isJSONString(body)) {
+          reject(new Error( 'register error' ));
+        } else {
+          this._register(conn, JSON.parse(body))
+            .then((device) => {
+              resolv(device)
+            }).catch(err => {
+              reject(err)
+            })
+        }
       }
 
       // set listener
@@ -161,7 +162,7 @@ class DeviceManager {
           this.devices.push(device)
           resolv(device)
         } else {
-          reject(`_register - does not match. type: ${data.type}, target: ${data.target}, method: ${data.method}`);
+          reject( new Error(`_register - does not match. type: ${data.type}, target: ${data.target}, method: ${data.method}`) );
         }
       } catch(err) {
         reject(err)
