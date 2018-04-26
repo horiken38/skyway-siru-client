@@ -4,7 +4,7 @@ import _             from 'underscore'
 import Rx            from 'rx'
 import Enum          from 'enum'
 
-import SkyWay        from '../assets/skyway.js'
+import SkyWay        from 'skyway-js'
 
 import util          from './util'
 import DeviceManager from './DeviceManager'
@@ -530,6 +530,7 @@ class SiRuClient extends EventEmitter {
       const _data   = JSON.parse(data)  // _data = {topic, payload}: {topic:string, payload: object}
       const topic   = _data.topic
       const message = _data.payload
+
 
       // check whether topic matches
       this.topics.filter( s_t => {

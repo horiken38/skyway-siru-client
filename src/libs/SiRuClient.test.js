@@ -1,8 +1,6 @@
 import SiRuClient from './SiRuClient'
-// import _ from 'underscore'
-// import EventEmitter from 'events'
 
-jest.mock('../assets/skyway.js')
+jest.mock('skyway-js')
 
 let roomName, key
 beforeAll(() => {
@@ -129,24 +127,26 @@ describe('pubsub test', () => {
   })
 
   test('publish will fire string message, when subscribed', done => {
+    siru.subscribe('test')
+
     siru.on('message', (topic, message) => {
       expect(topic).toBe('test')
       expect(message).toBe('hello')
       done()
     })
 
-    siru.subscribe('test')
     siru._handleDCData(JSON.stringify({topic: 'test', payload: 'hello'}) )
   })
 
   test('publish will fire Object message, when subscribed', done => {
+    siru.subscribe('test')
+
     siru.on('message', (topic, message) => {
       expect(topic).toBe('test')
       expect(message).toMatchObject({str: 'hello'})
       done()
     })
 
-    siru.subscribe('test')
     siru._handleDCData(JSON.stringify({topic: 'test', payload: { str: 'hello'}}) )
   })
 
