@@ -136,7 +136,7 @@ describe('pubsub test', () => {
     })
 
     siru.subscribe('test')
-    siru.publish('test', 'hello')
+    siru._handleDCData(JSON.stringify({topic: 'test', payload: 'hello'}) )
   })
 
   test('publish will fire Object message, when subscribed', done => {
@@ -147,8 +147,60 @@ describe('pubsub test', () => {
     })
 
     siru.subscribe('test')
-    siru.publish('test', {str: 'hello'})
+    siru._handleDCData(JSON.stringify({topic: 'test', payload: { str: 'hello'}}) )
   })
+
+  test('wildcard test with `test/+` for subscribe', done => {
+    siru.subscribe('test/+')
+
+    siru.on('message', (topic, message) => {
+      expect(topic).toBe('test/fuga')
+      expect(message).toBe('hello')
+      done();
+    });
+
+    siru._handleDCData(JSON.stringify({topic: 'test/fuga', payload: 'hello'}) )
+  });
+
+  test('wildcard test with `+/fuga` for subscribe', done => {
+    siru.subscribe('+/fuga')
+
+    siru.on('message', (topic, message) => {
+      expect(topic).toBe('test/fuga')
+      expect(message).toBe('hello')
+      done();
+    });
+
+    siru._handleDCData(JSON.stringify({topic: 'test/fuga', payload: 'hello'}) )
+  });
+
+  test('wildcard test with `test/+/+` for subscribe', done => {
+    siru.subscribe('test/+/+')
+
+    siru.on('message', (topic, message) => {
+      expect(topic).toBe('test/fuga/hoge')
+      expect(message).toBe('hello')
+      done();
+    });
+
+    siru._handleDCData(JSON.stringify({topic: 'test/fuga/hoge', payload: 'hello'}) )
+  });
+
+  test('wildcard test with `test/#` for subscribe', done => {
+    siru.subscribe('test/#')
+
+    siru.on('message', (topic, message) => {
+      expect(topic).toBe('test/fuga/hoge')
+      expect(message).toBe('hello')
+      done();
+    });
+
+    siru._handleDCData(JSON.stringify({topic: 'test/fuga/hoge', payload: 'hello'}) )
+  });
+
+
+
+
 
   test('publish will raise error, when topic is not string', () => {
     expect(() => siru.publish(0, 'hoge')).toThrow()
