@@ -6,12 +6,12 @@
 
 * [SiRuClient](#SiRuClient) ⇐ <code>EventEmitter</code>
     * [new SiRuClient(roomName, options)](#new_SiRuClient_new)
-    * [.fetch(uuid_path, options)](#SiRuClient+fetch) ⇒ <code>Promise.&lt;Response&gt;</code>
     * [.publish(topic, data)](#SiRuClient+publish)
     * [.subscribe(topic)](#SiRuClient+subscribe)
     * [.unsubscribe(topic)](#SiRuClient+unsubscribe)
     * [.requestStreaming(uuid)](#SiRuClient+requestStreaming) ⇒ <code>Promise.&lt;Object&gt;</code>
     * [.stopStreaming(uuid)](#SiRuClient+stopStreaming) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.sendStream(uuid, stream, [options])](#SiRuClient+sendStream) ⇒ <code>Promise.&lt;MediaConnection&gt;</code>
     * ["connect"](#SiRuClient+event_connect)
     * ["device:connected"](#SiRuClient+device_connected)
     * ["meta"](#SiRuClient+event_meta)
@@ -34,20 +34,12 @@ Client class of SkyWay IoT Room Utility
 | options | <code>Object</code> | option argument of skyway constructor. For more detail, please check https://webrtc.ecl.ntt.com/en/js-reference/Peer.html. |
 | options.key | <code>string</code> | SkyWay API key. This is only one mandatory parameter in options. |
 
-<a name="SiRuClient+fetch"></a>
+**Example**  
+```js
+const client = new SiRuClient( 'testroom', { key: 'YOUR_API_KEY' } );
 
-### siRuClient.fetch(uuid_path, options) ⇒ <code>Promise.&lt;Response&gt;</code>
-**Kind**: instance method of [<code>SiRuClient</code>](#SiRuClient)  
-**Returns**: <code>Promise.&lt;Response&gt;</code> - Response object  
-
-| Param | Type | Description |
-| --- | --- | --- |
-| uuid_path | <code>string</code> | target-device-uuid + path which begin with '/'. (e.g. "target-uuid/echo/hello" ) |
-| options | <code>object</code> |  |
-| options.method | <code>string</code> | default is `GET` |
-| options.query | <code>object</code> | default is `{}` |
-| options.body | <code>string</code> | default is `null` |
-
+client.on('connect', () => { ... });
+```
 <a name="SiRuClient+publish"></a>
 
 ### siRuClient.publish(topic, data)
@@ -61,6 +53,10 @@ when subscribing by myself, fire 'message' event internally as well.
 | topic | <code>string</code> | 
 | data | <code>string</code> \| <code>object</code> | 
 
+**Example**  
+```js
+client.publish('testtopic/message', {payload: 'hello'});
+```
 <a name="SiRuClient+subscribe"></a>
 
 ### siRuClient.subscribe(topic)
@@ -72,6 +68,13 @@ subscribe to topic
 | --- | --- |
 | topic | <code>string</code> | 
 
+**Example**  
+```js
+client.subscribe('testtopic/+');
+client.on('message', ( topic, name ) => {
+  console.log(topic, name); // #=> 'testtopic/message hello'
+});
+```
 <a name="SiRuClient+unsubscribe"></a>
 
 ### siRuClient.unsubscribe(topic)
@@ -83,6 +86,10 @@ unsubscribe topic
 | --- | --- |
 | topic | <code>string</code> | 
 
+**Example**  
+```js
+client.unsubscribe('testtopic/+');
+```
 <a name="SiRuClient+requestStreaming"></a>
 
 ### siRuClient.requestStreaming(uuid) ⇒ <code>Promise.&lt;Object&gt;</code>
@@ -95,6 +102,11 @@ request streaming to SSG
 | --- | --- |
 | uuid | <code>string</code> | 
 
+**Example**  
+```js
+client.requestStreaming(uuid)
+  .then( stream => { ... } )
+```
 <a name="SiRuClient+stopStreaming"></a>
 
 ### siRuClient.stopStreaming(uuid) ⇒ <code>Promise.&lt;void&gt;</code>
@@ -106,6 +118,44 @@ request stop streaming to SSG
 | --- | --- |
 | uuid | <code>string</code> | 
 
+**Example**  
+```js
+client.stopStreaming(uuid)
+  .then( () => { ... } )
+```
+<a name="SiRuClient+sendStream"></a>
+
+### siRuClient.sendStream(uuid, stream, [options]) ⇒ <code>Promise.&lt;MediaConnection&gt;</code>
+This method will send mediaStream to device.
+This method is useful for playing voice at remote speaker,
+recording audio and remote audio recognition etc.
+About options, see more detail at
+https://webrtc.ecl.ntt.com/skyway-js-sdk-doc/en/peer/#call-options-object
+
+**Kind**: instance method of [<code>SiRuClient</code>](#SiRuClient)  
+**Returns**: <code>Promise.&lt;MediaConnection&gt;</code> - - see https://webrtc.ecl.ntt.com/skyway-js-sdk-doc/en/mediaconnection/  
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| uuid | <code>string</code> |  | uuid of target device |
+| stream | <code>Object</code> |  | media stream object |
+| [options] | <code>Object</code> |  |  |
+| [options.audioCodec] | <code>string</code> | <code>&quot;&#x27;opus&#x27;&quot;</code> | audio codec |
+| [options.videoCodec] | <code>string</code> | <code>&quot;&#x27;H264&#x27;&quot;</code> | video codec |
+
+**Example**  
+```js
+const client = new SiRuClient( 'testroom', { key: 'YOUR_API_KEY' } );
+
+client.on('meta', profile => {
+  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    .then( stream =>
+       client.sendStream( profile.uuid, stream )
+    )
+    .then( call => console.log('start sending local stream') )
+    .catch( err => console.warn(err) );
+});
+```
 <a name="SiRuClient+event_connect"></a>
 
 ### "connect"

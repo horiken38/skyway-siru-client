@@ -33,6 +33,11 @@ const STATES = new Enum([
  * @constructs SiRuClient
  *
  * @extends EventEmitter
+ *
+ * @example
+ * const client = new SiRuClient( 'testroom', { key: 'YOUR_API_KEY' } );
+ *
+ * client.on('connect', () => { ... });
  */
 class SiRuClient extends EventEmitter {
   roomName:    string
@@ -118,7 +123,7 @@ class SiRuClient extends EventEmitter {
    *
    * @returns {Promise.<Response>} Response object
    *
-   * @method SiRuClient#fetch
+   * @private
    *
    */
   fetch(uuid_path: string, options:?Object): Promise<any> {
@@ -175,6 +180,9 @@ class SiRuClient extends EventEmitter {
    * @param {string} topic
    * @param {string|object} data
    * @method SiRuClient#publish
+   *
+   * @example
+   * client.publish('testtopic/message', {payload: 'hello'});
    */
   publish(topic: string, data: string|Object): void {
     if(typeof(topic) === 'string' && (typeof(data) === 'string' || typeof(data) === 'object')) {
@@ -199,6 +207,12 @@ class SiRuClient extends EventEmitter {
    * subscribe to topic
    * @param {string} topic
    * @method SiRuClient#subscribe
+   *
+   * @example
+   * client.subscribe('testtopic/+');
+   * client.on('message', ( topic, name ) => {
+   *   console.log(topic, name); // #=> 'testtopic/message hello'
+   * });
    */
   subscribe(topic: string): void {
     if(typeof(topic) === 'string') {
@@ -213,6 +227,9 @@ class SiRuClient extends EventEmitter {
    * unsubscribe topic
    * @param {string} topic
    * @method SiRuClient#unsubscribe
+   *
+   * @example
+   * client.unsubscribe('testtopic/+');
    */
   unsubscribe(topic: string): void {
     if(typeof(topic) === 'string') {
@@ -228,6 +245,10 @@ class SiRuClient extends EventEmitter {
    * @param {string} uuid
    * @returns {Promise<Object>} returns stream object
    * @method SiRuClient#requestStreaming
+   *
+   * @example
+   * client.requestStreaming(uuid)
+   *   .then( stream => { ... } )
    */
   requestStreaming(uuid: string): Promise<Object>{
     return new Promise((resolv, reject) => {
@@ -294,6 +315,10 @@ class SiRuClient extends EventEmitter {
    * @returns {Promise<void>}
    * @method SiRuClient#stopStreaming
    *
+   *
+   * @example
+   * client.stopStreaming(uuid)
+   *   .then( () => { ... } )
    */
   stopStreaming(uuid: string): Promise<void> {
     return new Promise((resolv, reject) => {
@@ -329,8 +354,6 @@ class SiRuClient extends EventEmitter {
   }
 
   /**
-   * request stop streaming to SSG
-   *
    * This method will send mediaStream to device.
    * This method is useful for playing voice at remote speaker,
    * recording audio and remote audio recognition etc.
@@ -342,7 +365,7 @@ class SiRuClient extends EventEmitter {
    * @param {Object} [options]
    * @param {string} [options.audioCodec='opus'] - audio codec
    * @param {string} [options.videoCodec='H264'] - video codec
-   * @return {Promise<Media Connection Object>} - see https://webrtc.ecl.ntt.com/skyway-js-sdk-doc/en/mediaconnection/
+   * @return {Promise<MediaConnection>} - see https://webrtc.ecl.ntt.com/skyway-js-sdk-doc/en/mediaconnection/
    *
    * @method SiRuClient#sendStream
    *
@@ -350,12 +373,14 @@ class SiRuClient extends EventEmitter {
    *
    * const client = new SiRuClient( 'testroom', { key: 'YOUR_API_KEY' } );
    *
-   * navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-   *   .then( stream =>
-   *      client.sendStream( uuid, stream )
-   *   )
-   *   .then( call => console.log('start sending local stream') )
-   *   .catch( err => console.warn(err) );
+   * client.on('meta', profile => {
+   *   navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+   *     .then( stream =>
+   *        client.sendStream( profile.uuid, stream )
+   *     )
+   *     .then( call => console.log('start sending local stream') )
+   *     .catch( err => console.warn(err) );
+   * });
    */
   sendStream(
     uuid: string,
