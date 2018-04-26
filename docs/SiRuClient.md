@@ -30,7 +30,7 @@ Client class of SkyWay IoT Room Utility
 
 | Param | Type | Description |
 | --- | --- | --- |
-| roomName | <code>string</code> | The name for PubSub Message Bus. |
+| roomName | <code>string</code> | The name of the room. |
 | options | <code>Object</code> | option argument of skyway constructor. For more detail, please check https://webrtc.ecl.ntt.com/en/js-reference/Peer.html. |
 | options.key | <code>string</code> | SkyWay API key. This is only one mandatory parameter in options. |
 
