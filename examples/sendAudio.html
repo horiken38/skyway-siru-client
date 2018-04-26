@@ -6,15 +6,17 @@
     <script src="../dist/skyway-siru-client.js"></script>
   </head>
   <body>
-    <h1>Send Audio Sample</h1>
-    <p id='message'>
-      Input your apikey and roomname. Then click to start sending audio stream.
-    </p>
-    <form>
-      apikey: <input id="input-apikey" type="text" required>
-      roomname: <input id="input-room-name" type="text" value="testroom" required>
-      <button type="submit">start</button>
-    </form>
+    <div class="container">
+      <h1>Send Audio Sample</h1>
+      <p id='message'>
+        Input your apikey and roomname. Then click to start sending audio stream.
+      </p>
+      <form>
+        apikey: <input id="input-apikey" type="text" required>
+        roomname: <input id="input-room-name" type="text" value="testroom" required>
+        <button type="submit">start</button>
+      </form>
+    </div>
 
   </body>
   <script>
@@ -56,7 +58,5 @@ $("form").on('submit', ev => {
 });
 
 init();
-
-
   </script>
 </html>
